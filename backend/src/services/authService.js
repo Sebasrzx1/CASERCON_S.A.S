@@ -27,7 +27,7 @@ const AuthService = {
     const { email, contraseña } = credentials;
 
     //1. Buscar usuario por email (usamos el modelo que ya creamos)
-    const user = await UserModel.findByEmail(email);
+    const user = await UserModel.findByEmailWithProcesos(email);
 
     //2. verificar si el email existe
     if (!user) {

@@ -38,4 +38,4 @@ const UsuarioProcesoModel = {
 
 };
 
-module.exports = UsuarioProceso;
+module.exports = UsuarioProcesoModel;

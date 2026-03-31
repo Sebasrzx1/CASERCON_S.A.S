@@ -23,14 +23,6 @@ export default function Dashboard() {
     stockCritico: 0,
   });
 
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.removeItem("casercon_user");
-    localStorage.removeItem("token");
-    navigate("/"); // redirige al login
-  };
-
   // Obtener usuario
   useEffect(() => {
     const savedUser = localStorage.getItem("casercon_user");
@@ -151,12 +143,6 @@ export default function Dashboard() {
         <h1 className="font-bold text-2xl text-gray-900">
           Bienvenido, {user?.nombre}
         </h1>
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          Cerrar sesión
-        </button>
         <p className="text-gray-600 mt-1">
           Resumen de operaciones y estado del inventario
         </p>

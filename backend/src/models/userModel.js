@@ -1,24 +1,38 @@
 const db = require("../config/conexion_db");
 
 const UserModel = {
-
   // Buscar usuario por email (login)
-  async findByEmail(email) {
+  // 🔐 Login con procesos incluidos
+  async findByEmailWithProcesos(email) {
     const query = `
-      SELECT 
-        u.id_usuario,
-        u.nombre,
-        u.email,
-        u.contraseña,
-        u.id_rol,
-        r.nombre_rol
-      FROM usuarios u
-      JOIN roles r ON u.id_rol = r.id_rol
-      WHERE u.email = ?
-    `;
+    SELECT 
+      u.id_usuario,
+      u.nombre,
+      u.email,
+      u.contraseña,
+      u.id_rol,
+      r.nombre_rol,
+      GROUP_CONCAT(p.nombre_proceso) AS procesos
+    FROM usuarios u
+    JOIN roles r ON u.id_rol = r.id_rol
+    LEFT JOIN usuario_procesos up ON u.id_usuario = up.id_usuario
+    LEFT JOIN procesos p ON up.id_proceso = p.id_proceso
+    WHERE u.email = ?
+    GROUP BY u.id_usuario
+  `;
 
     const [rows] = await db.execute(query, [email]);
-    return rows[0];
+
+    if (!rows[0]) return null;
+
+    const user = rows[0];
+
+    // 🔥 convertir string → array
+    user.procesos = user.procesos
+      ? user.procesos.split(",").map((p) => p.toLowerCase())
+      : [];
+
+    return user;
   },
 
   // Crear usuario
@@ -34,7 +48,7 @@ const UserModel = {
       nombre,
       email,
       contraseña,
-      id_rol
+      id_rol,
     ]);
 
     return result.insertId;
@@ -55,7 +69,7 @@ const UserModel = {
       email,
       contraseña,
       id_rol,
-      id_usuario
+      id_usuario,
     ]);
 
     return result.affectedRows;
@@ -109,24 +123,6 @@ const UserModel = {
   },
 
   // 🔥 PRO: usuario con rol y procesos
-  async findAllWithProcesos() {
-    const query = `
-      SELECT 
-        u.id_usuario,
-        u.nombre,
-        r.nombre_rol,
-        GROUP_CONCAT(p.nombre_proceso) AS procesos
-      FROM usuarios u
-      JOIN roles r ON u.id_rol = r.id_rol
-      LEFT JOIN usuario_procesos up ON u.id_usuario = up.id_usuario
-      LEFT JOIN procesos p ON up.id_proceso = p.id_proceso
-      GROUP BY u.id_usuario
-    `;
-
-    const [rows] = await db.execute(query);
-    return rows;
-  }
-
 };
 
 module.exports = UserModel;

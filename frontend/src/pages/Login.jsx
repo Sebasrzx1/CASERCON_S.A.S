@@ -17,12 +17,14 @@ export function Login() {
       try {
         const user = JSON.parse(savedUser);
 
+        const procesos = user.procesos || [];
+
         if (user.nombre_rol === "Administrador") {
           navigate("/dashboard", { replace: true });
-        } else if (user.nombre_rol === "Operario" && user.sectores) {
-          if (user.sectores.includes("recepcion")) {
+        } else if (user.nombre_rol === "Operario") {
+          if (procesos.includes("recepcion")) {
             navigate("/pedidos", { replace: true });
-          } else if (user.sectores.includes("produccion")) {
+          } else if (procesos.includes("produccion")) {
             navigate("/produccion", { replace: true });
           }
         }
@@ -58,16 +60,25 @@ export function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("casercon_user", JSON.stringify(data.data));
 
-      // 🚀 Redirección por rol
+      // 🚀 Redirección por rol y procesos
+
+      //para admin:
       if (data.data.nombre_rol === "Administrador") {
         navigate("/dashboard");
+
+        //para operarios segun su proceso
       } else if (data.data.nombre_rol === "Operario") {
-        if (data.data.sectores?.includes("recepcion")) {
+        const procesos = data.data.procesos || [];
+
+        if (procesos.includes("recepcion")) {
           navigate("/pedidos");
-        } else if (data.data.sectores?.includes("produccion")) {
+        } else if (procesos.includes("produccion")) {
           navigate("/produccion");
         } else {
-          navigate("/"); // fallback
+          //En casos que no se haya asignado procesos (Caso muy extraño)
+          setError(
+            "No tienes procesos asignados. Contacte con su administrador.",
+          );
         }
       }
     } catch (error) {
