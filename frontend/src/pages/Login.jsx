@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, AlertCircle } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import logoCarsecon from "../assets/logo.png";
 
 export function Login() {
   const [email, setEmail] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [error, setError] = useState("");
+
+  const { login } = useAuth(); // 🔥 usamos el contexto
   const navigate = useNavigate();
 
   // 🔐 Verificar sesión activa
@@ -14,23 +17,18 @@ export function Login() {
     const savedUser = localStorage.getItem("casercon_user");
 
     if (savedUser && savedUser !== "undefined") {
-      try {
-        const user = JSON.parse(savedUser);
+      const user = JSON.parse(savedUser);
 
+      if (user.nombre_rol === "Administrador") {
+        navigate("/dashboard", { replace: true });
+      } else if (user.nombre_rol === "Operario") {
         const procesos = user.procesos || [];
 
-        if (user.nombre_rol === "Administrador") {
-          navigate("/dashboard", { replace: true });
-        } else if (user.nombre_rol === "Operario") {
-          if (procesos.includes("recepcion")) {
-            navigate("/pedidos", { replace: true });
-          } else if (procesos.includes("produccion")) {
-            navigate("/produccion", { replace: true });
-          }
+        if (procesos.includes("recepcion")) {
+          navigate("/pedidos", { replace: true });
+        } else if (procesos.includes("produccion")) {
+          navigate("/produccion", { replace: true });
         }
-      } catch (error) {
-        console.error("Error al parsear usuario:", error);
-        localStorage.removeItem("casercon_user");
       }
     }
   }, [navigate]);
@@ -39,51 +37,26 @@ export function Login() {
     e.preventDefault();
     setError("");
 
-    try {
-      const res = await fetch("http://localhost:3000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          contraseña: contraseña, // 🔥 corregido
-        }),
-      });
+    const user = await login(email, contraseña); // 🔥 AQUÍ
 
-      const data = await res.json();
+    if (!user) {
+      setError("Credenciales incorrectas");
+      return;
+    }
 
-      if (!res.ok) {
-        setError(data.message || "Credenciales incorrectas");
-        return;
+    // 🔥 Redirección centralizada
+    if (user.nombre_rol === "Administrador") {
+      navigate("/dashboard");
+    } else if (user.nombre_rol === "Operario") {
+      const procesos = user.procesos || [];
+
+      if (procesos.includes("recepcion")) {
+        navigate("/pedidos");
+      } else if (procesos.includes("produccion")) {
+        navigate("/produccion");
+      } else {
+        setError("No tienes procesos asignados");
       }
-
-      // 🔐 Guardar sesión correctamente
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("casercon_user", JSON.stringify(data.data));
-
-      // 🚀 Redirección por rol y procesos
-
-      //para admin:
-      if (data.data.nombre_rol === "Administrador") {
-        navigate("/dashboard");
-
-        //para operarios segun su proceso
-      } else if (data.data.nombre_rol === "Operario") {
-        const procesos = data.data.procesos || [];
-
-        if (procesos.includes("recepcion")) {
-          navigate("/pedidos");
-        } else if (procesos.includes("produccion")) {
-          navigate("/produccion");
-        } else {
-          //En casos que no se haya asignado procesos (Caso muy extraño)
-          setError(
-            "No tienes procesos asignados. Contacte con su administrador.",
-          );
-        }
-      }
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo conectar al servidor");
     }
   };
 
