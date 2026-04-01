@@ -1,5 +1,8 @@
 const movimientosModel = require("../models/movimientosModel");
 
+
+//Todas estas funciones async apuntan hacia el Model los (services) en el backend sirven como capa intermedia entre los controladores (controladores API) y el modelo (base de datos), encapsulando la lógica de negocio, validando datos y gestionando la manipulación de información. 
+
 const movimientosService = {
 
   async getAllMovimientos() {

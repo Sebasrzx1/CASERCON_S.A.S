@@ -1,8 +1,7 @@
 const db = require("../config/conexion_db");
 
 const UserModel = {
-  // Buscar usuario por email (login)
-  // 🔐 Login con procesos incluidos
+  // Buscar usuario por email (login) para el Login con procesos incluidos
   async findByEmailWithProcesos(email) {
     const query = `
     SELECT 
@@ -27,7 +26,7 @@ const UserModel = {
 
     const user = rows[0];
 
-    // 🔥 convertir string → array
+    // convertir string → array
     user.procesos = user.procesos
       ? user.procesos.split(",").map((p) => p.toLowerCase())
       : [];
@@ -35,7 +34,7 @@ const UserModel = {
     return user;
   },
 
-  // Crear usuario
+  // Crear un usuario nuevo
   async create(user) {
     const { nombre, email, contraseña, id_rol } = user;
 
@@ -58,20 +57,32 @@ const UserModel = {
   async update(user) {
     const { id_usuario, nombre, email, contraseña, id_rol } = user;
 
-    const query = `
-      UPDATE usuarios 
-      SET nombre = ?, email = ?, contraseña = ?, id_rol = ?
-      WHERE id_usuario = ?
-    `;
+    const fields = [];
+    const values = [];
 
-    const [result] = await db.execute(query, [
-      nombre,
-      email,
-      contraseña,
-      id_rol,
-      id_usuario,
-    ]);
+    if (nombre) {
+      fields.push("nombre = ?");
+      values.push(nombre);
+    }
+    if (email) {
+      fields.push("email = ?");
+      values.push(email);
+    }
+    if (contraseña) {
+      fields.push("contraseña = ?");
+      values.push(contraseña);
+    }
+    if (id_rol) {
+      fields.push("id_rol = ?");
+      values.push(id_rol);
+    }
 
+    if (fields.length === 0) return 0; // nada que actualizar
+
+    const query = `UPDATE usuarios SET ${fields.join(", ")} WHERE id_usuario = ?`;
+    values.push(id_usuario);
+
+    const [result] = await db.execute(query, values);
     return result.affectedRows;
   },
 
@@ -94,21 +105,33 @@ const UserModel = {
     return rows[0];
   },
 
-  // Listar todos los usuarios (con rol)
+  // Listar todos los usuarios (con rol) pero filtramos solo operarios ya que no habra crud para administradores
   async findAll() {
     const query = `
-      SELECT 
-        u.id_usuario,
-        u.nombre,
-        u.email,
-        u.id_rol,
-        r.nombre_rol
-      FROM usuarios u
-      JOIN roles r ON u.id_rol = r.id_rol
-    `;
+    SELECT 
+      u.id_usuario,
+      u.nombre,
+      u.email,
+      u.id_rol,
+      r.nombre_rol,
+      GROUP_CONCAT(p.nombre_proceso) AS procesos
+    FROM usuarios u
+    JOIN roles r ON u.id_rol = r.id_rol
+    LEFT JOIN usuario_procesos up ON u.id_usuario = up.id_usuario
+    LEFT JOIN procesos p ON up.id_proceso = p.id_proceso
+    WHERE u.id_rol = 2
+    GROUP BY u.id_usuario
+  `;
 
     const [rows] = await db.execute(query);
-    return rows;
+
+    // 🔥 convertir string → array
+    return rows.map((user) => ({
+      ...user,
+      procesos: user.procesos
+        ? user.procesos.split(",").map((p) => p.toLowerCase())
+        : [],
+    }));
   },
 
   // ❌ Eliminar usuario
@@ -122,7 +145,30 @@ const UserModel = {
     return result.affectedRows;
   },
 
-  // 🔥 PRO: usuario con rol y procesos
+  //Obtener un proceso por su nombre
+
+  async getProcesoByNombre(nombre) {
+    const [rows] = await db.execute(
+      "SELECT id_proceso FROM procesos WHERE LOWER(nombre_proceso) = ?",
+      [nombre.toLowerCase()],
+    );
+    return rows[0];
+  },
+
+  //Asignar un proceso a un usuario
+  async insertUsuarioProceso(id_usuario, id_proceso) {
+    await db.execute(
+      "INSERT INTO usuario_procesos (id_usuario, id_proceso) VALUES (?, ?)",
+      [id_usuario, id_proceso],
+    );
+  },
+
+  //Eliminar un proceso a un usuario
+  async deleteProcesosByUsuario(id_usuario) {
+    await db.execute("DELETE FROM usuario_procesos WHERE id_usuario = ?", [
+      id_usuario,
+    ]);
+  },
 };
 
 module.exports = UserModel;

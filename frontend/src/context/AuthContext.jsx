@@ -14,7 +14,7 @@ export const AuthProvider = ({ children }) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, contraseña }), // ✅ CORRECTO
+        body: JSON.stringify({ email, contraseña }),
       });
 
       if (!res.ok) {
@@ -24,13 +24,12 @@ export const AuthProvider = ({ children }) => {
 
       const data = await res.json();
 
-      // Guardar sesión
       localStorage.setItem("token", data.token);
       localStorage.setItem("casercon_user", JSON.stringify(data.data));
 
       setUser(data.data);
 
-      return data.data; // 🔥 devolvemos el usuario
+      return data.data;
     } catch (error) {
       console.error(error);
       return null;
@@ -43,8 +42,11 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // ✅ NUEVO
+  const isAdministrador = user?.nombre_rol === "Administrador";
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isAdministrador }}>
       {children}
     </AuthContext.Provider>
   );

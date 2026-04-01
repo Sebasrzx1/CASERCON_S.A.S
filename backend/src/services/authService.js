@@ -7,22 +7,6 @@ const httpStatus = require("../constants/httpStatus");
 const { signToken } = require("../utils/jwtToken");
 
 const AuthService = {
-  async registerUser(userData) {
-    //Delegamos toda la lógica de creación al UserService
-
-    //Él se encarga de validar duplicados y hashear la contraseña.
-
-    const newUser = await UserService.createUser(userData);
-
-    //Retornamos los datos limpios
-
-    return {
-      id: newUser.id,
-      nombre: newUser.nombre,
-      email: newUser.email,
-    };
-  },
-
   async loginUser(credentials) {
     const { email, contraseña } = credentials;
 

@@ -14,7 +14,7 @@ app.use(
   cors({
     origin: ["http://localhost:4200", "http://localhost:5173"],
     Credentials: true,
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "DELETE", "PUT", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
@@ -36,6 +36,7 @@ const atuhRoutes = require('./routes/authRoutes')
 const materiasPrimasRoutes = require('./routes/materiasPrimasRoutes')
 const recetasRoutes = require('./routes/recetasRoutes');
 const movimientosRoutes = require('./routes/movimientosRoutes');
+const userRoutes = require('./routes/userRoutes')
 
 // Rutas de autenticacion para los usuarios.
 app.use('/api/auth', atuhRoutes)
@@ -48,6 +49,10 @@ app.use('/api/recetas', recetasRoutes)
 
 //Rutas para los movimientos
 app.use('/api/movimientos', movimientosRoutes)
+
+//Rutas para usuarios
+app.use("/api/usuarios", userRoutes);
+
 
 //Manejo de rutas no encontradsa (404)
 app.all(/(.*)/, (req, res, next)=>{

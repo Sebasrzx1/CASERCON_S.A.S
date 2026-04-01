@@ -1,98 +1,104 @@
-const bcrypt = require('bcrypt');
-const AppError = require('../errors/AppError');
-const httpStatus = require('../constants/httpStatus');
-const UserModel = require('../models/userModel') //Importar el modelo 
+const UserModel = require("../models/userModel");
+const bcrypt = require("bcrypt");
+
+//Todas estas funciones async apuntan hacia el Model los (services) en el backend sirven como capa intermedia entre los controladores (controladores API) y el modelo (base de datos), encapsulando la lógica de negocio, validando datos y gestionando la manipulación de información.
+
+// Helper para obtener id_rol desde el nombre
+async function getIdRolByName(rol) {
+  const lower = rol.toLowerCase();
+  if (lower === "administrador") return 1;
+  if (lower === "operario") return 2;
+  return null; // rol inválido
+}
 
 const UserService = {
-    async getAllUsers(){
-        //El servicio delega la búsqueda al modelo
-        const users = await UserModel.findAll();
-        return users;
-    },
+  // crear usuario
+  async createUsuario(data) {
+    const { nombre, email, rol, procesos } = data;
 
-    async createUser(userData){
-        //1. Validar si el email ya exise Regla de negocio
-        const existingUser = await UserModel.findByEmail(userData.email);
-        if(existingUser){
-            throw new AppError('El email ya está registrado', httpStatus.BAD_REQUEST)
+    const id_rol = await getIdRolByName(rol); // <-- usa el helper
+    if (!id_rol) throw new Error("Rol inválido");
+
+    const hashPassword = await bcrypt.hash(data.contraseña, 10);
+
+    const id_usuario = await UserModel.create({
+      nombre,
+      email,
+      contraseña: hashPassword,
+      id_rol,
+    });
+
+    // 🔥 asignar procesos
+    if (procesos?.length) {
+      for (const proceso of procesos) {
+        const procesoDB = await UserModel.getProcesoByNombre(proceso);
+
+        if (procesoDB) {
+          await UserModel.insertUsuarioProceso(
+            id_usuario,
+            procesoDB.id_proceso,
+          );
         }
-
-        //2. Encriptar la contraseña (SEGURIDAD OBLIGATORIA)
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(userData.constraseña, salt) 
-
-        //3. Preparar objeto para el modelo
-        const newUser  = {
-            ...userData,
-            constraseña: hashedPassword
-        }
-
-        //4. Llamar al modelo
-        const userId = await UserModel.create(newUser);
-        return { id: userId, ...newUser}
-    },
-
-    async updateUser(id, updateData){
-        // 1. verificar si el usuario existe
-        const userExists = await UserModel.findById(id)
-
-        // 2. Validar email único si se esta cambiando
-        if(updateData.email && updateData.email !== userExists.email){
-            const emailInUse = await UserModel.findByEmail(updateData.email)
-            if(emailInUse){
-                throw new AppError('El email ya esta registrado', httpStatus.BAD_REQUEST)
-            }
-        }
-
-        // 3. Manejo de contraseña en actualizacion
-        let hashedkey = userExists.constraseña; //Por defecto usuamos la que ya tiene
-        if(updateData.constraseña && updateData.constraseña.trim() !== ''){
-            const salt = await bcrypt.genSalt(10);
-            hashedkey = await bcrypt.hash(updateData.constraseña, salt)
-        }
-
-        // 4. Construir un objeto con valores actualizados o existentes
-        const userToUpdate = {
-            id: id,
-            nombre: updateData.nombre !== undefined ? updateData.nombre : userExists.nombre,
-            email: updateData.email !== undefined ? updateData.email : userExists.email,
-            id_rol: updateData.id_rol !== undefined ? updateData.id_rol : userExists.id_rol,
-            constraseña: hashedkey
-        };
-
-        const affectedRows = await UserModel.update(userToUpdate)
-        return affectedRows > 0
-
-    },
-
-    // AñadimoS CurrentUserId
-    async deleteUser(idToDelate, CurrentUserId){
-        //Prevencion de auto sabotaje (Admin no puede borrarse asi mismo)
-        if(Number(idToDelate) === Number(CurrentUserId)){
-            throw new AppError(
-                'No puedes eliminar tu propia cuenta de administrador',
-                httpStatus.FORBIDEN
-            )
-        }
-
-        // verificacion previa
-        //Primero verificamos si existe antes de intentar borrar
-        const userExists = await UserModel.findById(idToDelate);
-
-        if(!userExists){
-            //Lanzar el error aqui mismo.
-            //Asi es el controlador solo tiene que llamar a la funcion y listo.
-            throw new AppError('Usuario no encontrado.', httpStatus.NOT_FOUND)
-        }
-        
-        // 3. EJECUTAR EL BORRADO
-        const affectedRows = await UserModel.deleteById(idToDelate);
-
-        //Retornar true en caso de exito en el borrado
-        return affectedRows > 0
-    
-    
+      }
     }
-}
+
+    return {
+      id_usuario,
+      nombre,
+      email,
+      nombre_rol: rol,
+      procesos,
+    };
+  },
+
+  //Actualizar usuario
+  async updateUsuario(id, data) {
+    const updateData = {};
+
+    if (data.nombre) updateData.nombre = data.nombre;
+    if (data.email) updateData.email = data.email;
+    if (data.contraseña) {
+      updateData.contraseña = await bcrypt.hash(data.contraseña, 10);
+    }
+
+    // Si viene el rol como string
+    if (data.rol) {
+      const id_rol = await getIdRolByName(data.rol);
+      if (id_rol) updateData.id_rol = id_rol;
+    }
+
+    // Si viene directamente el id_rol
+    if (data.id_rol) {
+      updateData.id_rol = data.id_rol;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await UserModel.update({ id_usuario: id, ...updateData });
+    }
+
+    if (data.procesos) {
+      await UserModel.deleteProcesosByUsuario(id);
+      for (const proceso of data.procesos) {
+        const procesoDB = await UserModel.getProcesoByNombre(proceso);
+        if (procesoDB)
+          await UserModel.insertUsuarioProceso(id, procesoDB.id_proceso);
+      }
+    }
+
+    return { message: "Usuario actualizado" };
+  },
+
+  async getUsuarios() {
+    return await UserModel.findAll();
+  },
+
+  async getUsuarioById(id) {
+    return await UserModel.findById(id);
+  },
+
+  async deleteUsuario(id) {
+    return await UserModel.deleteById(id);
+  },
+};
 
 module.exports = UserService;

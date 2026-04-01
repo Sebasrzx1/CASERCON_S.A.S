@@ -14,6 +14,7 @@ import {
   User,
   ShoppingCart,
   Factory,
+  Building2
 } from "lucide-react";
 import logoCarsecon from "../assets/logo.png";
 
@@ -46,6 +47,7 @@ export function Layout() {
         { path: "/recetas", label: "Recetas", icon: BookOpen },
         { path: "/produccion", label: "Producción", icon: Factory },
         { path: "/pedidos", label: "Pedidos", icon: ShoppingCart },
+        { path: "/proveedores", label: "Proveedores", icon: Building2 },
         { path: "/movimientos", label: "Movimientos", icon: FileText },
         { path: "/usuarios", label: "Usuarios", icon: User },
       ]
