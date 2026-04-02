@@ -1,6 +1,6 @@
 const db = require("../config/conexion_db");
 
-const ProvvedoresModel = {
+const ProveedoresModel = {
   async findAll() {
     const query = `
             SELECT * FROM proveedores;
@@ -37,13 +37,12 @@ const ProvvedoresModel = {
       email,
       telefono,
       direccion,
-      estado,
       observaciones,
     } = proveedor;
 
     const query = `
-      INSERT INTO proveedores (nombre_proveedor, nombre_empresa, email, telefono, direccion, estado, observaciones)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO proveedores (nombre_proveedor, nombre_empresa, email, telefono, direccion, observaciones)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await db.execute(query, [
@@ -52,7 +51,6 @@ const ProvvedoresModel = {
       email,
       telefono,
       direccion,
-      estado,
       observaciones,
     ]);
 
@@ -90,6 +88,16 @@ const ProvvedoresModel = {
 
     await db.execute(query, [id]);
   },
+
+  async cambiarEstado(id) {
+    const query = `
+    UPDATE proveedores
+    SET estado = 'Activo'
+    WHERE id_proveedor = ?
+  `;
+
+    await db.execute(query, [id]);
+  },
 };
 
-module.exports = ProvvedoresModel;
+module.exports = ProveedoresModel;

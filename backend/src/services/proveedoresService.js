@@ -3,7 +3,7 @@ const AppError = require("../errors/AppError");
 const httpStatus = require("../constants/httpStatus");
 
 const proveedoresService = {
-  // 🔹 Obtener todos
+  // Obtener todos los proveedores
   async getAllProveedores() {
     try {
       const proveedores = await proveedoresModel.findAll();
@@ -14,77 +14,71 @@ const proveedoresService = {
     }
   },
 
-  // 🔹 Obtener uno (🔥 TE FALTABA ESTE)
+  // Obtener un proveedor por ID
   async getById(id) {
     const proveedor = await proveedoresModel.findById(id);
 
     if (!proveedor) {
-      throw new AppError(
-        "Proveedor no encontrado",
-        httpStatus.NOT_FOUND
-      );
+      throw new AppError("Proveedor no encontrado", httpStatus.NOT_FOUND);
     }
 
     return proveedor;
   },
 
-  // 🔹 Crear
+  // Crear proveedores
   async createProveedor(proveedorData) {
     const { email, nombre_proveedor } = proveedorData;
 
     if (!nombre_proveedor) {
       throw new AppError(
         "El nombre del proveedor es obligatorio",
-        httpStatus.BAD_REQUEST
+        httpStatus.BAD_REQUEST,
       );
     }
 
     if (!email) {
-      throw new AppError(
-        "El email es obligatorio",
-        httpStatus.BAD_REQUEST
-      );
+      throw new AppError("El email es obligatorio", httpStatus.BAD_REQUEST);
     }
 
-    // 🔥 Validar duplicado
+    // Validar duplicado
     const existingProv = await proveedoresModel.findByEmail(email);
 
     if (existingProv) {
       throw new AppError(
         "El proveedor ya está registrado",
-        httpStatus.BAD_REQUEST
+        httpStatus.BAD_REQUEST,
       );
     }
 
     return await proveedoresModel.create(proveedorData);
   },
 
-  // 🔹 Actualizar
+  // Actualizar proveedores
   async updateProveedor(id, proveedorData) {
     // 🔥 Validar que exista
     await this.getById(id);
 
-    // 🔥 Validar email único si viene
+    // Validar email único si viene
     if (proveedorData.email) {
-      const existe = await proveedoresModel.findByEmail(
-        proveedorData.email
-      );
+      const existe = await proveedoresModel.findByEmail(proveedorData.email);
 
       if (existe && existe.id_proveedor != id) {
-        throw new AppError(
-          "Ese email ya está en uso",
-          httpStatus.BAD_REQUEST
-        );
+        throw new AppError("Ese email ya está en uso", httpStatus.BAD_REQUEST);
       }
     }
 
     await proveedoresModel.update(id, proveedorData);
   },
 
-  // 🔹 Eliminar (soft delete)
+  // Eliminar proveedores (soft delete)
   async deleteProveedor(id) {
     await this.getById(id);
     await proveedoresModel.delete(id);
+  },
+
+  async habilitarProveedor(id) {
+    await this.getById(id);
+    await proveedoresModel.cambiarEstado(id);
   },
 };
 
