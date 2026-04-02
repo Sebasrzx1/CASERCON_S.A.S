@@ -78,6 +78,12 @@ export default function Usuarios() {
   // ========================
   const handleSubmit = async (e) => {
     e.preventDefault();
+    //validamos de que se haya seleccionado un sector para el operario.
+    if (formulario.procesos.length === 0) {
+      alert("Debe seleccionar al menos un sector para el operario.");
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:3000/api/usuarios", {
         method: "POST",
@@ -107,7 +113,14 @@ export default function Usuarios() {
   // ========================
   const handleSubmitEditar = async (e) => {
     e.preventDefault();
+
     if (!usuarioEditando) return;
+    
+    //validamos de que se haya seleccionado un sector para el operario.
+    if (formulario.procesos.length === 0) {
+      alert("Debe seleccionar al menos un sector para el operario.");
+      return;
+    }
 
     const payload = {
       nombre: formulario.nombre,
@@ -288,7 +301,6 @@ export default function Usuarios() {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {/* Nombre completo */}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre Completo
@@ -301,6 +313,7 @@ export default function Usuarios() {
                     setFormulario({ ...formulario, nombre: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
               </div>
 
@@ -317,6 +330,7 @@ export default function Usuarios() {
                     setFormulario({ ...formulario, email: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   El operario usará este email para iniciar sesión
@@ -340,6 +354,7 @@ export default function Usuarios() {
                       })
                     }
                     className="w-full border p-2 rounded"
+                    required
                   />
                   <button
                     type="button"

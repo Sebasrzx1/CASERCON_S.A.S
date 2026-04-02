@@ -36,6 +36,7 @@ const atuhRoutes = require('./routes/authRoutes')
 const materiasPrimasRoutes = require('./routes/materiasPrimasRoutes')
 const recetasRoutes = require('./routes/recetasRoutes');
 const movimientosRoutes = require('./routes/movimientosRoutes');
+const proveedoresRoutes = require('./routes/proveedoresRoutes')
 const userRoutes = require('./routes/userRoutes')
 
 // Rutas de autenticacion para los usuarios.
@@ -52,6 +53,9 @@ app.use('/api/movimientos', movimientosRoutes)
 
 //Rutas para usuarios
 app.use("/api/usuarios", userRoutes);
+
+//Rutas para los proveedores
+app.use('/api/proveedores', proveedoresRoutes)
 
 
 //Manejo de rutas no encontradsa (404)
