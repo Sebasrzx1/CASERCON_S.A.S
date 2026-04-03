@@ -7,8 +7,8 @@ const {
   createUsuario,
   updateUsuario,
   deleteUsuario,
+  habilitarUsuario
 } = require("../controllers/userController");
-const { getUsuario } = require("../services/userService");
 
 // 🔥 Rutas de usuarios
 
@@ -26,5 +26,8 @@ router.put("/:id", updateUsuario);
 
 // Eliminar usuario
 router.delete("/:id", deleteUsuario);
+
+// Habilitar usuario
+router.patch("/:id/habilitar", habilitarUsuario)
 
 module.exports = router;

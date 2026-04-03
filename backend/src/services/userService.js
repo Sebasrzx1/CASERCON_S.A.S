@@ -99,6 +99,17 @@ const UserService = {
   async deleteUsuario(id) {
     return await UserModel.deleteById(id);
   },
+
+  // Eliminar proveedores (soft delete)
+  async deleteUsuario(id) {
+    await this.getUsuarioById(id);
+    await UserModel.delete(id);
+  },
+
+  async habilitarUsuario(id) {
+    await this.getUsuarioById(id);
+    await UserModel.cambiarEstado(id);
+  },
 };
 
 module.exports = UserService;

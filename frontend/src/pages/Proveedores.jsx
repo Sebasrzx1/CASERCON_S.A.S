@@ -139,7 +139,7 @@ export default function Proveedores() {
   };
 
   // ==============================
-  // ❌ INHABILITAR
+  // INHABILITAR
   // ==============================
   const inhabilitarProveedor = async (id) => {
     if (!confirm("¿Está seguro de inhabilitar este proveedor?")) return;

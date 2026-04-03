@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Users, Plus, Edit, Eye, EyeOff, Ban, Check, X } from "lucide-react";
+import { Card, CardContent } from "../components/card";
 
 export default function Usuarios() {
   const { isAdministrador } = useAuth();
@@ -10,6 +11,7 @@ export default function Usuarios() {
   const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
   const [mostrarContraseña, setMostrarContraseña] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const [filtro, setFiltro] = useState("habilitadas");
 
   const [formulario, setFormulario] = useState({
     nombre: "",
@@ -26,9 +28,11 @@ export default function Usuarios() {
       const res = await fetch("http://localhost:3000/api/usuarios");
       const data = await res.json();
 
-      console.log("RESPUESTA 👉", data);
-
-      setUsuarios(data.data); // 🔥 AQUÍ ESTÁ LA CLAVE
+      const usuariosNormalizados = data.data.map((u) => ({
+        ...u,
+        habilitado: u.estado === "Activo",
+      }));
+      setUsuarios(usuariosNormalizados);
     } catch (error) {
       console.error(error);
     }
@@ -115,7 +119,7 @@ export default function Usuarios() {
     e.preventDefault();
 
     if (!usuarioEditando) return;
-    
+
     //validamos de que se haya seleccionado un sector para el operario.
     if (formulario.procesos.length === 0) {
       alert("Debe seleccionar al menos un sector para el operario.");
@@ -153,23 +157,43 @@ export default function Usuarios() {
     }
   };
 
-  // ========================
-  // HABILITAR / INHABILITAR
-  // ========================
-  // const cambiarEstado = async (id, estado) => {
-  //   try {
-  //     await fetch(`http://localhost:3000/api/usuarios/${id}/estado`, {
-  //       method: 'PATCH',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ habilitado: estado }),
-  //     });
+  // ==============================
+  // INHABILITAR
+  // ==============================
+  const inhabilitarUsuario = async (id) => {
+    if (!confirm("¿Está seguro de inhabilitar este usuario?")) return;
 
-  //     await obtenerUsuarios();
-  //   } catch (error) {
-  //     console.error(error);
-  //   }
-  // };
+    try {
+      await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+        method: "DELETE",
+      });
 
+      await obtenerUsuarios();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  // ==============================
+  // HABILITAR
+  // ==============================
+  const habilitarUsuario = async (id) => {
+    if (!confirm("¿Está seguro de habilitar este usuario?")) return;
+
+    try {
+      await fetch(`http://localhost:3000/api/usuarios/${id}/habilitar`, {
+        method: "PATCH",
+      });
+
+      await obtenerUsuarios();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const usuariosFiltrados =
+    filtro === "habilitadas"
+      ? usuarios.filter((u) => u.habilitado)
+      : usuarios.filter((u) => !u.habilitado);
   // ========================
   // PERMISOS
   // ========================
@@ -209,6 +233,45 @@ export default function Usuarios() {
         <p className="text-2xl font-bold text-gray-900">{usuarios.length}</p>
       </div>
 
+      {/*Filtros por estado */}
+      <Card>
+        <CardContent className="pt-6 pb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">
+              Filtrar por:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFiltro("habilitadas")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  filtro === "habilitadas"
+                    ? "bg-green-600 text-white shadow-sm"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Habilitados ({usuarios.filter((u) => u.habilitado).length})
+                </span>
+              </button>
+              <button
+                onClick={() => setFiltro("inhabilitadas")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  filtro === "inhabilitadas"
+                    ? "bg-red-600 text-white shadow-sm"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Ban className="w-4 h-4" />
+                  Inhabilitados ({usuarios.filter((u) => !u.habilitado).length})
+                </span>
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Lista */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
         {usuarios.length === 0 ? (
@@ -221,7 +284,7 @@ export default function Usuarios() {
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {usuarios.map((usuario) => (
+            {usuariosFiltrados.map((usuario) => (
               <div
                 key={usuario.id_usuario}
                 className="p-6 hover:bg-gray-50 transition-colors"
@@ -268,10 +331,27 @@ export default function Usuarios() {
                   </div>
 
                   <div className="flex gap-2">
+                    {usuario.habilitado ? (
+                      <button
+                        onClick={() => inhabilitarUsuario(usuario.id_usuario)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Inhabilitar operario"
+                      >
+                        <Ban className="w-5 h-5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => habilitarUsuario(usuario.id_usuario)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        title="Habilitar operario"
+                      >
+                        <Check className="w-5 h-5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => abrirModalEditar(usuario)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Editar Operario"
+                      title="Editar operario"
                     >
                       <Edit className="w-5 h-5" />
                     </button>

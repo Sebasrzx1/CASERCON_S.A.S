@@ -91,6 +91,7 @@ const UserModel = {
     const query = `
       SELECT 
         u.id_usuario,
+        u.estado,
         u.nombre,
         u.email,
         u.contraseña,
@@ -110,6 +111,7 @@ const UserModel = {
     const query = `
     SELECT 
       u.id_usuario,
+      u.estado,
       u.nombre,
       u.email,
       u.id_rol,
@@ -168,6 +170,27 @@ const UserModel = {
     await db.execute("DELETE FROM usuario_procesos WHERE id_usuario = ?", [
       id_usuario,
     ]);
+  },
+
+  // 🔹 Soft delete
+  async delete(id) {
+    const query = `
+      UPDATE usuarios
+      SET estado = 'Inhabilitado'
+      WHERE id_usuario = ?
+    `;
+
+    await db.execute(query, [id]);
+  },
+
+  async cambiarEstado(id) {
+    const query = `
+    UPDATE usuarios
+    SET estado = 'Activo'
+    WHERE id_usuario = ?
+  `;
+
+    await db.execute(query, [id]);
   },
 };
 
