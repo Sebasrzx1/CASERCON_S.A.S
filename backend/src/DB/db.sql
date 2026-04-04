@@ -28,7 +28,7 @@ CREATE TABLE usuarios(
     contraseña VARCHAR(225) NOT NULL,
     codigo_recuperacion VARCHAR(6),
     intentos_fallidos INT DEFAULT 0,
-    Estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
+    estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
 	FOREIGN KEY (id_rol) REFERENCES roles(id_rol)
 );
 
@@ -62,7 +62,8 @@ CREATE TABLE proveedores (
     email VARCHAR(250),
     telefono VARCHAR (10),
     direccion VARCHAR (80),
-    estado ENUM('Activo', 'Inhabilitado') DEFAULT 'Activo'
+    estado ENUM('Activo', 'Inhabilitado') DEFAULT 'Activo',
+    observaciones text NULL
 );
 
 -- 7. Creacion de la tabla pedidos 
@@ -135,8 +136,8 @@ CREATE TABLE lotes (
 CREATE TABLE recetas (
     id_receta INT AUTO_INCREMENT PRIMARY KEY,
     nombre_producto VARCHAR(100) NOT NULL,
-    tipo_producto ENUM('Esmalte','Pintura','Selladores'),
-    descripcion TEXT,
+    tipo_producto ENUM('Esmalte','Pintura','Selladores'), #--- Borrar 
+    descripcion TEXT, #--- borrar
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -145,7 +146,7 @@ CREATE TABLE detalle_receta (
     id_detalle_receta INT AUTO_INCREMENT PRIMARY KEY,
     id_receta INT NOT NULL ,
     id_materia INT NOT NULL,
-    cantidad_kg DECIMAL(12,4) NOT NULL,
+    cantidad_porcentaje DECIMAL(5,2) NOT NULL,
     FOREIGN KEY (id_receta) REFERENCES recetas(id_receta),
     FOREIGN KEY (id_materia) REFERENCES materias_primas(id_materia),
     
@@ -219,9 +220,10 @@ INSERT INTO roles (nombre_rol) VALUES -- Perfecto
 ('Administrador'),
 ('Operario');
 
-INSERT INTO usuarios (id_rol,nombre,email,contraseña,intentos_fallidos,Estado) VALUES
-(1,'Carlos Ramirez','admin@casercon.com','123456',0,'Activo'),
-(2,'Ana Lopez','operario@casercon.com','123456',0,'Activo');
+INSERT INTO usuarios (id_rol,nombre,email,contraseña,intentos_fallidos,estado) VALUES
+(1,'Carlos Ramirez','admin@casercon.com','$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u',0,'Activo'),
+(2,'Ana Lopez','operario@casercon.com','$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u',0,'Activo'),
+(2,'Esteban Suarez','operario2@casercon.com','$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u',0,'Activo');
 
 INSERT INTO procesos (nombre_proceso) VALUES
 ('Recepcion'),
@@ -229,15 +231,16 @@ INSERT INTO procesos (nombre_proceso) VALUES
 
 INSERT INTO usuario_procesos (id_proceso,id_usuario) VALUES
 (1,2), 
-(2,2);
+(2,2),
+(1,3);
 
 -- ====================================================================================================================================
 --            					INSERT INTO para la gestion de proveedores, pedidos, materia prima, lotes.
 -- ======================================================================================================================================
 
-INSERT INTO proveedores  (nombre_proveedor,nombre_empresa,email,telefono,direccion,estado) VALUES
-('Juan Perez','Quimicos SAS','ventas@quimicos.com','3001234567','Bogota','Activo'),
-('Maria Torres','Pigmentos SA','contacto@pigmentos.com','3009876543','Medellin','Activo');
+INSERT INTO proveedores  (nombre_proveedor,nombre_empresa,email,telefono,direccion,estado,observaciones) VALUES
+('Juan Perez','Quimicos SAS','ventas@quimicos.com','3001234567','Bogota','Activo',null),
+('Maria Torres','Pigmentos SA','contacto@pigmentos.com','3009876543','Medellin','Activo','vive lejos');
 
 INSERT INTO categoria_materias (nombre_categoria_materia) VALUES
 ('Resinas'),
@@ -267,9 +270,9 @@ INSERT INTO lotes (id_materia,id_detalle_pedido,numero_lote,codigo_lote,stock_in
 INSERT INTO recetas (nombre_producto,tipo_producto,descripcion) VALUES
 ('Pintura Blanca','Pintura','Pintura acrilica base blanca');
 
-INSERT INTO detalle_receta (id_receta,id_materia,cantidad_kg) VALUES
-(1,1,60),
-(1,2,40);
+INSERT INTO detalle_receta (id_receta,id_materia,cantidad_porcentaje) VALUES
+(1,1,10.00),
+(1,2,12.00);
 
 INSERT INTO ordenes_produccion (id_receta,id_usuario_creador,id_usuario_inicio,id_usuario_fin,cantidad_producir,estado) VALUES
 (1,1,2,2,100,'Completada');
@@ -278,7 +281,7 @@ INSERT INTO ordenes_produccion (id_receta,id_usuario_creador,id_usuario_inicio,i
 -- ====================================================================================================================================
 
 INSERT INTO movimientos_inventario (id_materia,id_lote,id_usuario,tipo_movimiento,cantidad,id_orden_produccion, observacion) VALUES
-(1,1,2,'Salida',60,1,'ño'),
+(1,1,2,'Salida',30,1,'ño'),
 (2,2,2,'Salida',40,1,'chi'),
 (1, 1, 2, 'Entrada', 100, 1, 'Ingreso de materia prima por pedido OC-1001');
 
@@ -376,3 +379,37 @@ LEFT JOIN recetas r
     ON op.id_receta = r.id_receta
 
 WHERE mi.id_movimiento = 3; -- aquí cambias el ID
+
+
+SELECT 
+    u.nombre AS usuario,
+    r.nombre_rol,
+    p.nombre_proceso
+FROM usuarios u
+JOIN roles r ON u.id_rol = r.id_rol
+LEFT JOIN usuario_procesos up ON u.id_usuario = up.id_usuario
+LEFT JOIN procesos p ON up.id_proceso = p.id_proceso;
+
+
+SELECT * FROM usuarios;
+
+
+ SELECT 
+        mp.id_materia AS id,
+        mp.nombre,
+        mp.stock_min AS stockMinimo,
+        ROUND(COALESCE(SUM(l.stock_restante), 0),2) AS stockActual,
+        'kg' AS unidad
+      FROM materias_primas mp
+      LEFT JOIN lotes l 
+        ON mp.id_materia = l.id_materia 
+        AND l.estado = 'activo'
+      GROUP BY mp.id_materia, mp.nombre, mp.stock_min;
+
+SELECT * FROM recetas;
+
+UPDATE usuarios SET contraseña = "$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u" WHERE id_usuario = 8;
+
+select * from usuarios;
+
+select * from proveedores where email = "ventas@quimicos.com";
