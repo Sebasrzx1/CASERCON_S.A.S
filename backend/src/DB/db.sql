@@ -97,6 +97,7 @@ CREATE TABLE materias_primas(
     id_categoria_materia INT NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     stock_min DECIMAL (12,2) DEFAULT 0,
+    estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
     FOREIGN KEY (id_categoria_materia) REFERENCES categoria_materias(id_categoria_materia)
 );
 
@@ -136,8 +137,6 @@ CREATE TABLE lotes (
 CREATE TABLE recetas (
     id_receta INT AUTO_INCREMENT PRIMARY KEY,
     nombre_producto VARCHAR(100) NOT NULL,
-    tipo_producto ENUM('Esmalte','Pintura','Selladores'), #--- Borrar 
-    descripcion TEXT, #--- borrar
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -267,8 +266,8 @@ INSERT INTO lotes (id_materia,id_detalle_pedido,numero_lote,codigo_lote,stock_in
 --            								INSERT INTO para la gestion de recetas y prudccion.
 -- ======================================================================================================================================
 
-INSERT INTO recetas (nombre_producto,tipo_producto,descripcion) VALUES
-('Pintura Blanca','Pintura','Pintura acrilica base blanca');
+INSERT INTO recetas (nombre_producto) VALUES
+('Pintura Blanca');
 
 INSERT INTO detalle_receta (id_receta,id_materia,cantidad_porcentaje) VALUES
 (1,1,10.00),
@@ -291,7 +290,6 @@ INSERT INTO movimientos_inventario (id_materia,id_lote,id_usuario,tipo_movimient
 SELECT 
     op.id_orden_produccion,
     r.nombre_producto,
-    r.tipo_producto,
     
     uc.nombre AS creador_orden,
     ui.nombre AS usuario_inicio,
