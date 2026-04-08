@@ -116,7 +116,7 @@ CREATE TABLE lotes (
     id_lote INT AUTO_INCREMENT PRIMARY KEY,
     id_materia INT NOT NULL,
     numero_lote INT NOT NULL,
-    id_detalle_pedido INT NOT NULL,
+    id_detalle_pedido INT NULL,
     codigo_lote VARCHAR(50) UNIQUE NOT NULL,
     stock_inicial DECIMAL(12,4) NOT NULL,
     stock_restante DECIMAL(12,4) NOT NULL,

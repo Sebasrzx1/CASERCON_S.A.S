@@ -16,7 +16,7 @@ const materiasPrimasService = {
 
       return materias.map((m) => ({
         ...m,
-        estado: calcularEstadoStock(m.stockActual, m.stockMinimo),
+        estadoStock: calcularEstadoStock(m.stockActual, m.stockMinimo),
       }));
     } catch (error) {
       console.error("Error en service getAllMaterias:", error);

@@ -44,10 +44,10 @@ export default function Dashboard() {
 
         // Contar estado
         const stockSuficiente = data.filter(
-          (m) => m.estado === "Suficiente",
+          (m) => m.estadoStock === "Suficiente",
         ).length;
-        const stockBajo = data.filter((m) => m.estado === "Bajo").length;
-        const stockCritico = data.filter((m) => m.estado === "Critico").length;
+        const stockBajo = data.filter((m) => m.estadoStock === "Bajo").length;
+        const stockCritico = data.filter((m) => m.estadoStock === "Critico").length;
 
         setMaterias(data);
         setEstadisticas((prev) => ({
@@ -116,8 +116,6 @@ export default function Dashboard() {
         return "bg-red-100 text-red-700 border-red-200";
       case "Bajo":
         return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "Suficiente":
-        return "bg-green-100 text-green-700 border-green-200";
       default:
         return "";
     }
@@ -129,19 +127,18 @@ export default function Dashboard() {
         return <XCircle className="w-5 h-5" />;
       case "Bajo":
         return <TrendingDown className="w-5 h-5" />;
-      case "Suficiente":
-        return <CheckCircle className="w-5 h-5" />;
       default:
         return null;
     }
   };
+  
 
   return (
     <div className="space-y-6">
       {/* Bienvenida */}
       <div>
         <h1 className="font-bold text-2xl text-gray-900">
-          Bienvenido, {user?.nombre}
+          Bienvenid@, {user?.nombre}
         </h1>
         <p className="text-gray-600 mt-1">
           Resumen de operaciones y estado del inventario
@@ -227,13 +224,13 @@ export default function Dashboard() {
         <div className="p-6 space-y-3">
           {materias.map((materia) => (
             <div
-              key={materia.id}
+              key={materia.id_materia}
               className={`flex justify-between p-3 rounded-lg border ${getStatusColor(
-                materia.estado,
+                materia.estadoStock,
               )}`}
             >
               <div className="flex gap-3 items-center">
-                {getStatusIcon(materia.estado)}
+                {getStatusIcon(materia.estadoStock)}
                 <div>
                   <p className="font-medium">{materia.nombre}</p>
                   <p className="text-sm">
