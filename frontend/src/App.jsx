@@ -2,21 +2,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Login } from "./pages/Login";
 import { Layout } from "./components/Layout";
 
-<<<<<<< HEAD
-=======
 
 
 
->>>>>>> feature/modulo-inventario
 // Páginas (créelas después si no existen)
 import Dashboard from "./pages/Dashboard";
 import Inventario from "./pages/Inventario";
 import Recetas from "./pages/Recetas";
-<<<<<<< HEAD
-import Produccion from "./pages/produccion";
-=======
 import Produccion from "./pages/Produccion";
->>>>>>> feature/modulo-inventario
 import Pedidos from "./pages/pedidos";
 import Proveedores from "./pages/Proveedores";
 import Movimientos from "./pages/Movimientosj";

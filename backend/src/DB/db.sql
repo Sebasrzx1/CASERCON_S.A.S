@@ -97,10 +97,7 @@ CREATE TABLE materias_primas(
     id_categoria_materia INT NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     stock_min DECIMAL (12,2) DEFAULT 0,
-<<<<<<< HEAD
-=======
     estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
->>>>>>> feature/modulo-inventario
     FOREIGN KEY (id_categoria_materia) REFERENCES categoria_materias(id_categoria_materia)
 );
 
@@ -119,11 +116,7 @@ CREATE TABLE lotes (
     id_lote INT AUTO_INCREMENT PRIMARY KEY,
     id_materia INT NOT NULL,
     numero_lote INT NOT NULL,
-<<<<<<< HEAD
-    id_detalle_pedido INT NOT NULL,
-=======
     id_detalle_pedido INT NULL,
->>>>>>> feature/modulo-inventario
     codigo_lote VARCHAR(50) UNIQUE NOT NULL,
     stock_inicial DECIMAL(12,4) NOT NULL,
     stock_restante DECIMAL(12,4) NOT NULL,
@@ -144,11 +137,6 @@ CREATE TABLE lotes (
 CREATE TABLE recetas (
     id_receta INT AUTO_INCREMENT PRIMARY KEY,
     nombre_producto VARCHAR(100) NOT NULL,
-<<<<<<< HEAD
-    tipo_producto ENUM('Esmalte','Pintura','Selladores'), #--- Borrar 
-    descripcion TEXT, #--- borrar
-=======
->>>>>>> feature/modulo-inventario
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -278,13 +266,8 @@ INSERT INTO lotes (id_materia,id_detalle_pedido,numero_lote,codigo_lote,stock_in
 --            								INSERT INTO para la gestion de recetas y prudccion.
 -- ======================================================================================================================================
 
-<<<<<<< HEAD
-INSERT INTO recetas (nombre_producto,tipo_producto,descripcion) VALUES
-('Pintura Blanca','Pintura','Pintura acrilica base blanca');
-=======
 INSERT INTO recetas (nombre_producto) VALUES
 ('Pintura Blanca');
->>>>>>> feature/modulo-inventario
 
 INSERT INTO detalle_receta (id_receta,id_materia,cantidad_porcentaje) VALUES
 (1,1,10.00),
@@ -307,10 +290,6 @@ INSERT INTO movimientos_inventario (id_materia,id_lote,id_usuario,tipo_movimient
 SELECT 
     op.id_orden_produccion,
     r.nombre_producto,
-<<<<<<< HEAD
-    r.tipo_producto,
-=======
->>>>>>> feature/modulo-inventario
     
     uc.nombre AS creador_orden,
     ui.nombre AS usuario_inicio,
