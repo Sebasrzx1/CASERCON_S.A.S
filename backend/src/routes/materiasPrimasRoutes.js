@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const materiasPrimasController = require('../controllers/materiasPrimasController');
 
+// ⚠️  /categorias debe ir ANTES de /:id para que Express no lo interprete como un ID
 router.get("/",                    materiasPrimasController.getAllMaterias);
 router.get("/categorias",          materiasPrimasController.getAllCategorias);
 router.get("/:id/lotes",           materiasPrimasController.getLotesByMateria);
