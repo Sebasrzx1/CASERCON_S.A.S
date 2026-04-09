@@ -58,6 +58,7 @@ export default function Inventario() {
   const [editando, setEditando]         = useState(null);
   const [formulario, setFormulario]     = useState(FORM_VACIO);
   const [guardando, setGuardando]       = useState(false);
+  const [loteInicialUsado, setLoteInicialUsado] = useState(false);
 
   // ── Modal lotes ───────────────────────────────────────────────────────────
   const [modalLotes, setModalLotes]       = useState(false);
@@ -128,13 +129,20 @@ export default function Inventario() {
   // ── Modal crear / editar ──────────────────────────────────────────────────
   const abrirModal = (materia = null) => {
     setEditando(materia);
+
+    if (materia) {
+      setLoteInicialUsado(materia.loteInicialUsado);
+    }
+
     setFormulario(materia ? {
-      nombre:               materia.nombre,
-      codigo:               materia.codigo        || "",
-      abreviacion:          materia.abreviacion   || "",
+      nombre: materia.nombre,
+      codigo: materia.codigo || "",
+      abreviacion: materia.abreviacion || "",
       id_categoria_materia: materia.id_categoria_materia || "",
-      stock_min:            materia.stockMinimo   ?? "",
+      stock_min: materia.stockMinimo ?? "",
+      stock_inicial: materia.stockActual ?? "",
     } : FORM_VACIO);
+
     setModalAbierto(true);
   };
 
@@ -490,21 +498,28 @@ export default function Inventario() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 <p className="text-xs text-gray-500 mt-1">Se usa para generar códigos de lote</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stock Inicial (kg) *
-                </label>
-                <input
-                  type="number" step="0.01" min="0.01" required
-                  value={formulario.stock_inicial}
-                  onChange={e => setFormulario({ ...formulario, stock_inicial: e.target.value })}
-                  placeholder="Ej: 350"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Se creará automáticamente un lote con esta cantidad
-                </p>
-              </div>
+              {(!editando || !loteInicialUsado) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stock Inicial (kg) *
+                  </label>
+
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={formulario.stock_inicial}
+                    onChange={e => setFormulario({ ...formulario, stock_inicial: e.target.value })}
+                    placeholder="Ej: 350"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se creará automáticamente un lote con esta cantidad
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock Mínimo (kg) *</label>
                 <input type="number" step="0.01" min="0" required
@@ -684,3 +699,4 @@ export default function Inventario() {
     </div>
   );
 }
+//pendiente a pruebas :3 release v1.0
