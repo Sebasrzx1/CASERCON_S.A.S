@@ -699,3 +699,4 @@ export default function Inventario() {
     </div>
   );
 }
+//pendiente a pruebas :3 release v1.0
