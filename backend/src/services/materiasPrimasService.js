@@ -49,46 +49,136 @@ const materiasPrimasService = {
 
   // ─── Crear ─────────────────────────────────────────────────────────────────
   async createMateria(body) {
-    try {
-      const { nombre, codigo, abreviacion, id_categoria_materia, stock_min } = body;
+  const db = require("../config/conexion_db");
+  const conn = await db.getConnection(); // transacción para que todo o nada
+  try {
+    await conn.beginTransaction();
 
-      if (!nombre || !codigo || !abreviacion || !id_categoria_materia) {
-        throw { status: 400, msg: "Faltan campos requeridos: nombre, codigo, abreviacion, id_categoria_materia" };
-      }
+    const { nombre, codigo, abreviacion, id_categoria_materia, stock_min, stock_inicial, id_usuario } = body;
 
-      const id = await materiasPrimasModel.create({
-        nombre, codigo, abreviacion, id_categoria_materia, stock_min,
-      });
-
-      return { id_materia: id, msg: "Materia prima creada correctamente" };
-    } catch (error) {
-      console.error("Error en service createMateria:", error);
-      throw error;
+    if (!nombre || !codigo || !abreviacion || !id_categoria_materia) {
+      throw { status: 400, msg: "Faltan campos requeridos: nombre, codigo, abreviacion, id_categoria_materia" };
     }
-  },
+    if (!stock_inicial || parseFloat(stock_inicial) <= 0) {
+      throw { status: 400, msg: "El stock inicial debe ser mayor a 0" };
+    }
+    if (!id_usuario) {
+      throw { status: 400, msg: "Se requiere el id del usuario" };
+    }
+
+    // 1. Crear la materia prima
+    const [mpResult] = await conn.execute(
+      `INSERT INTO materias_primas (nombre, codigo, abreviacion, id_categoria_materia, stock_min)
+      VALUES (?, ?, ?, ?, ?)`,
+      [nombre, codigo, abreviacion, id_categoria_materia, stock_min ?? 0]
+    );
+    const id_materia = mpResult.insertId;
+
+    // 2. Generar código de lote
+    const fecha = new Date();
+    const dd    = String(fecha.getDate()).padStart(2, "0");
+    const mm    = String(fecha.getMonth() + 1).padStart(2, "0");
+    const yyyy  = fecha.getFullYear();
+    const codigo_lote = `${abreviacion}-001-${dd}${mm}${yyyy}`;
+
+    // 3. Crear el lote inicial
+    const [loteResult] = await conn.execute(
+      `INSERT INTO lotes
+          (id_materia, numero_lote, id_detalle_pedido, codigo_lote, stock_inicial, stock_restante, estado)
+      VALUES (?, 1, NULL, ?, ?, ?, 'activo')`,
+      [id_materia, codigo_lote, stock_inicial, stock_inicial]
+    );
+    const id_lote = loteResult.insertId;
+
+    // 4. Registrar movimiento de entrada
+    await conn.execute(
+      `INSERT INTO movimientos_inventario
+          (id_materia, id_lote, id_usuario, tipo_movimiento, cantidad, observacion)
+      VALUES (?, ?, ?, 'Entrada', ?, 'Stock inicial al registrar materia prima')`,
+      [id_materia, id_lote, id_usuario, stock_inicial]
+    );
+
+    await conn.commit();
+    return { id_materia, msg: "Materia prima creada correctamente con stock inicial" };
+
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error en service createMateria:", error);
+    throw error;
+  } finally {
+    conn.release();
+  }
+},
 
   // ─── Actualizar ────────────────────────────────────────────────────────────
   async updateMateria(id, body) {
-    try {
-      const materia = await materiasPrimasModel.findById(id);
-      if (!materia) throw { status: 404, msg: "Materia prima no encontrada" };
+  const db = require("../config/conexion_db");
+  const conn = await db.getConnection();
 
-      const { nombre, codigo, abreviacion, id_categoria_materia, stock_min } = body;
+  try {
+    await conn.beginTransaction();
 
-      if (!nombre || !codigo || !abreviacion || !id_categoria_materia) {
-        throw { status: 400, msg: "Faltan campos requeridos" };
+    const materia = await materiasPrimasModel.findById(id);
+    if (!materia) throw { status: 404, msg: "Materia prima no encontrada" };
+
+    const {
+      nombre,
+      codigo,
+      abreviacion,
+      id_categoria_materia,
+      stock_min,
+      stock_inicial
+    } = body;
+
+    if (!nombre || !codigo || !abreviacion || !id_categoria_materia) {
+      throw { status: 400, msg: "Faltan campos requeridos" };
+    }
+
+    // actualizar metadata
+    await materiasPrimasModel.update(id, {
+      nombre,
+      codigo,
+      abreviacion,
+      id_categoria_materia,
+      stock_min
+    });
+
+    // ─── lógica del stock inicial ─────────────────────
+    if (stock_inicial !== undefined) {
+
+      const loteInicial = await materiasPrimasModel.findLoteInicial(id);
+
+      if (!loteInicial) {
+        throw { status: 400, msg: "No existe lote inicial para esta materia" };
       }
 
-      await materiasPrimasModel.update(id, {
-        nombre, codigo, abreviacion, id_categoria_materia, stock_min,
-      });
+      // si se usó en producción
+      if (loteInicial.stock_restante !== loteInicial.stock_inicial) {
+        throw {
+          status: 400,
+          msg: "No se puede modificar el stock inicial porque el lote ya fue usado en producción"
+        };
+      }
 
-      return { msg: "Materia prima actualizada correctamente" };
-    } catch (error) {
-      console.error("Error en service updateMateria:", error);
-      throw error;
+      // actualizar lote
+      await materiasPrimasModel.updateStockLote(
+        loteInicial.id_lote,
+        stock_inicial
+      );
     }
-  },
+
+    await conn.commit();
+
+    return { msg: "Materia prima actualizada correctamente" };
+
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error en service updateMateria:", error);
+    throw error;
+  } finally {
+    conn.release();
+  }
+},
 
   // Reemplaza deleteMateria por esto:
 async deleteMateria(id) {
