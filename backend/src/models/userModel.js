@@ -8,6 +8,7 @@ const UserModel = {
       u.id_usuario,
       u.nombre,
       u.email,
+      u.estado,
       u.contraseña,
       u.id_rol,
       r.nombre_rol,

@@ -13,7 +13,7 @@ const app = express();
 app.use(
   cors({
     origin: ["http://localhost:4200", "http://localhost:5173"],
-    Credentials: true,
+    credentials: true,
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -69,5 +69,7 @@ app.use('/api/pedidos', pedidosRouter)
 app.all(/(.*)/, (req, res, next)=>{
     next(new AppError(`No se pudo encontrar ${req.originalUrl} en este servidor`, 404))
 })
+
+app.use(globalErrorHandler)
 
 module.exports = app;

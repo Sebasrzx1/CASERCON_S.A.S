@@ -3,96 +3,97 @@ const { promisify } = require("util");
 const UserModel = require("../models/userModel");
 const AppError = require("../errors/AppError");
 const httpStatus = require("../constants/httpStatus");
-const errorDictionary = require("../errors/errorDictionary");
 
 const protect = async (req, res, next) => {
   try {
-    //1. Obtener el token del header
-
     let token;
 
+    // 1. Obtener token del header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
     ) {
-      token = req.headers.authorization.split(' ')[1];
+      token = req.headers.authorization.split(" ")[1];
     }
+
+    console.log("TOKEN RECIBIDO:", token);
 
     if (!token) {
-      throw new AppError(
-        "No has iniciado sesión. Por favor ingresa para obtener acceso",
-        httpStatus.UNAUTHORIZED,
-      );
+      throw new AppError("No has iniciado sesión", httpStatus.UNAUTHORIZED);
     }
 
-    //2. verificar el token (verify)
-    //Convierte una función que usa callbacks en una función que devuelve una Promesa
-    //📌 Un callback es una función que se pasa como argumento a otra función para que se ejecute después.
-    const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    // 2. Verificar token
+    const decoded = await promisify(jwt.verify)(
+      token,
+      process.env.JWT_SECRET
+    );
 
-    //3. verificar si el usuario todavia existe
+    console.log("DECODED TOKEN:", decoded);
+
+    // 3. Buscar usuario en DB
     const currentUser = await UserModel.findById(decoded.id);
 
+    console.log("USUARIO ENCONTRADO:", currentUser);
+
     if (!currentUser) {
-      throw new AppError(
-        "El usuario dueño de este token ya no existe",
-        httpStatus.UNAUTHORIZED,
-      );
+      throw new AppError("El usuario ya no existe", httpStatus.UNAUTHORIZED);
     }
 
-    //4. verificar si el usuario cambio la contraseña después de emitir el token
-    //Esto se hace comparando 'iat' (issued at) con un campo 'passwordChangedAt' en DB.
+    // 4. Guardar usuario en request (normalizado)
+    req.user = {
+      id: currentUser.id_usuario,
+      estado: currentUser.estado,
+      rol_nombre: currentUser.nombre_rol.toLowerCase().trim(),
+    };
 
-    //!ACCESO CONCEDIDO! ponemos el usuario en la request para que el controlador lo use
+    console.log("REQ.USER:", req.user);
 
-    req.user = currentUser;
     next();
   } catch (error) {
-    //Capturar errores especificos de JWT
+    console.error("ERROR EN PROTECT:", error);
+
     if (error.name === "JsonWebTokenError") {
-      return next(
-        new AppError(
-          "Token invalido. Inicia sesión de nuevo.",
-          httpStatus.UNAUTHORIZED,
-        ),
-      );
+      return next(new AppError("Token inválido", httpStatus.UNAUTHORIZED));
     }
+
     if (error.name === "TokenExpiredError") {
-      return next(
-        new AppError(
-          "Tu sesion ha expirado. Inicia sesión de nuevo.",
-          httpStatus.UNAUTHORIZED,
-        ),
-      );
+      return next(new AppError("Sesión expirada", httpStatus.UNAUTHORIZED));
     }
 
     next(error);
   }
 };
 
-//Middleware para restringir acceso por roles
-//Uso: restricTo('Administrador','Empleado')
-
+// 🔐 Middleware para roles
 const restricTo = (...roles) => {
   return (req, res, next) => {
+    console.log("ROLES PERMITIDOS:", roles);
+    console.log("ROL DEL USUARIO:", req.user?.rol_nombre);
+
     if (!req.user) {
       return next(
         new AppError(
-          "Debes estar autenticado para acceder a este recurso",
-          httpStatus.UNAUTHORIZED,
-        ),
+          "Debes estar autenticado",
+          httpStatus.UNAUTHORIZED
+        )
       );
     }
-    if (!roles.includes(req.user.rol_nombre)) {
+
+    const rolesPermitidos = roles.map((r) =>
+      r.toLowerCase().trim()
+    );
+
+    if (!rolesPermitidos.includes(req.user.rol_nombre)) {
       return next(
         new AppError(
           "No tienes permiso para realizar esta acción",
-          httpStatus.FORBIDEN,
-        ),
+          httpStatus.FORBIDDEN
+        )
       );
     }
+
     next();
   };
 };
 
-module.exports = {protect, restricTo};
+module.exports = { protect, restricTo };
