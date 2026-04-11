@@ -1,13 +1,17 @@
 const express = require("express");
 const router = express.Router();
 
+//Middlewares
+const { protect, restricTo } = require("../middlewares/authMiddleware");
+const validarUsuarioActivo = require("../middlewares/validarUsuarioActivo");
+
 const {
   getAllUsuarios,
   getUsuarioById,
   createUsuario,
   updateUsuario,
   deleteUsuario,
-  habilitarUsuario
+  habilitarUsuario,
 } = require("../controllers/userController");
 
 // 🔥 Rutas de usuarios
@@ -25,9 +29,21 @@ router.post("/", createUsuario);
 router.put("/:id", updateUsuario);
 
 // Eliminar usuario
-router.delete("/:id", deleteUsuario);
+router.delete(
+  "/:id",
+  protect,
+  validarUsuarioActivo,
+  restricTo("administrador"),
+  deleteUsuario,
+);
 
 // Habilitar usuario
-router.patch("/:id/habilitar", habilitarUsuario)
+router.patch(
+  "/:id/habilitar",
+  protect,
+  validarUsuarioActivo,
+  restricTo("administrador"),
+  habilitarUsuario,
+);
 
 module.exports = router;

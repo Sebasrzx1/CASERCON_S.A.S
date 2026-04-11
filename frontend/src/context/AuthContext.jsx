@@ -4,7 +4,7 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(
-    JSON.parse(localStorage.getItem("casercon_user")) || null
+    JSON.parse(localStorage.getItem("casercon_user")) || null,
   );
 
   const login = async (email, contraseña) => {
@@ -17,12 +17,14 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, contraseña }),
       });
 
+      const data = await res.json(); // 🔥 SIEMPRE JSON
+      console.log("RESPUESTA BACKEND:", data); // 👈 AGREGA ESTO
+      
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Error en login");
+        return { 
+          error: data.message || "Error en login" 
+        }; // 🔥 CLAVE
       }
-
-      const data = await res.json();
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("casercon_user", JSON.stringify(data.data));
@@ -32,7 +34,7 @@ export const AuthProvider = ({ children }) => {
       return data.data;
     } catch (error) {
       console.error(error);
-      return null;
+      return { error: "Error de conexión con el servidor" };
     }
   };
 

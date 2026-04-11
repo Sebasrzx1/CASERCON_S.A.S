@@ -39,8 +39,8 @@ export function Login() {
 
     const user = await login(email, contraseña); // 🔥 AQUÍ
 
-    if (!user) {
-      setError("Credenciales incorrectas");
+    if (user?.error) {
+      setError(user.error);
       return;
     }
 
