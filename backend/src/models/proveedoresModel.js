@@ -98,6 +98,15 @@ const ProveedoresModel = {
 
     await db.execute(query, [id]);
   },
+
+  async findByNombre(nombre) {
+    const query = `
+    SELECT * FROM proveedores
+    WHERE nombre_empresa = ? OR nombre_proveedor = ?
+  `;
+    const [rows] = await db.execute(query, [nombre, nombre]);
+    return rows[0];
+  },
 };
 
 module.exports = ProveedoresModel;

@@ -87,7 +87,7 @@ const restricTo = (...roles) => {
       return next(
         new AppError(
           "No tienes permiso para realizar esta acción",
-          httpStatus.FORBIDDEN
+          httpStatus.FORBIDEN
         )
       );
     }

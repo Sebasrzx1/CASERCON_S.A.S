@@ -5,10 +5,10 @@ const z = require("zod");
 //Nota: Es muy similar al registro, pero lo separamos por si las reglas cambian (ej: admin puede crear usuarios sin clave inicial)
 
 const createProveedorSchema = z.object({
-  nombre_proveedor: z.string().min(3),
-  nombre_empresa: z.string().min(3),
+  nombre_proveedor: z.string().min(3, "El nombre del proveedor no es valido"),
+  nombre_empresa: z.string().min(3,  "El nombre de la empresa no valido"),
   email: z.string().email(),
-  telefono: z.string(),
+  telefono: z.string().max(10, "El telofono es muy largo"),
   direccion: z.string(),
   observaciones: z.string().optional(),
 });

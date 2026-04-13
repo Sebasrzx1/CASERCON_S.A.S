@@ -27,7 +27,7 @@ const proveedoresService = {
 
   // Crear proveedores
   async createProveedor(proveedorData) {
-    const { email, nombre_proveedor } = proveedorData;
+    const { email, nombre_proveedor, nombre_empresa } = proveedorData;
 
     if (!nombre_proveedor) {
       throw new AppError(
@@ -39,13 +39,21 @@ const proveedoresService = {
     if (!email) {
       throw new AppError("El email es obligatorio", httpStatus.BAD_REQUEST);
     }
-
-    // Validar duplicado
-    const existingProv = await proveedoresModel.findByEmail(email);
-
-    if (existingProv) {
+    const existingEmail = await proveedoresModel.findByEmail(email);
+    if (existingEmail) {
       throw new AppError(
-        "El proveedor ya está registrado",
+        "El correo ya está registrado",
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    const existingNombre = await proveedoresModel.findByNombre(
+      nombre_empresa || nombre_proveedor,
+    );
+
+    if (existingNombre) {
+      throw new AppError(
+        "El nombre del proveedor ya está registrado",
         httpStatus.BAD_REQUEST,
       );
     }
@@ -60,10 +68,18 @@ const proveedoresService = {
 
     // Validar email único si viene
     if (proveedorData.email) {
-      const existe = await proveedoresModel.findByEmail(proveedorData.email);
+      const existeEmail = await proveedoresModel.findByEmail(proveedorData.email);
 
-      if (existe && existe.id_proveedor != id) {
+      if (existeEmail && existeEmail.id_proveedor != id) {
         throw new AppError("Ese email ya está en uso", httpStatus.BAD_REQUEST);
+      }
+    }
+
+    if (proveedorData.nombre_empresa) {
+      const existeEmpresa = await proveedoresModel.findByNombre(proveedorData.nombre_empresa);
+
+      if (existeEmpresa && existeEmpresa.id_proveedor != id) {
+        throw new AppError("El nombre de empresa ya se encuentra en uso", httpStatus.BAD_REQUEST);
       }
     }
 
