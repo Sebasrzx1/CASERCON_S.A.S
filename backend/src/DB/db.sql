@@ -275,6 +275,11 @@ INSERT INTO detalle_receta (id_receta,id_materia,cantidad_porcentaje) VALUES
 
 INSERT INTO ordenes_produccion (id_receta,id_usuario_creador,id_usuario_inicio,id_usuario_fin,cantidad_producir,estado) VALUES
 (1,1,2,2,100,'Completada');
+
+INSERT INTO ordenes_produccion 
+  (id_receta, id_usuario_creador, cantidad_producir, estado)
+VALUES 
+  (1, 1, 200, 'Pendiente');
 -- ====================================================================================================================================
 -- 												INSERT INTO movimientos inventario
 -- ====================================================================================================================================
@@ -287,6 +292,22 @@ INSERT INTO movimientos_inventario (id_materia,id_lote,id_usuario,tipo_movimient
 -- ===================== Consultas principales y fundamentales segun las necesidades =======================================
 
 -- CONSULTAR ORDENES DE PRODUCCION
+
+SELECT 
+  mp.id_materia,
+  mp.nombre,
+  ROUND(
+    COALESCE(SUM(dr.cantidad_porcentaje / 100 * op.cantidad_producir), 0), 2
+  ) AS stock_comprometido
+FROM materias_primas mp
+LEFT JOIN detalle_receta dr 
+  ON dr.id_materia = mp.id_materia
+LEFT JOIN ordenes_produccion op 
+  ON op.id_receta = dr.id_receta
+  AND op.estado IN ('Pendiente', 'En proceso')
+WHERE mp.estado = 'Activo'
+GROUP BY mp.id_materia, mp.nombre;
+
 SELECT 
     op.id_orden_produccion,
     r.nombre_producto,

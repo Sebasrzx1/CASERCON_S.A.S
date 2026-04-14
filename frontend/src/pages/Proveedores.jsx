@@ -10,6 +10,7 @@ import {
   Ban,
   Check,
 } from "lucide-react";
+import { z } from "zod";
 
 import {
   Dialog,
@@ -29,6 +30,7 @@ export default function Proveedores() {
   const [proveedorEditando, setProveedorEditando] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filtro, setFiltro] = useState("habilitadas");
+  const [errores, setErrores] = useState({});
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -45,6 +47,15 @@ export default function Proveedores() {
   useEffect(() => {
     fetchProveedores();
   }, []);
+
+  const proveedorSchema = z.object({
+    nombre: z.string().min(3, "Mínimo 3 caracteres"),
+    contacto: z.string().min(3, "Mínimo 3 caracteres"),
+    telefono: z.string().min(10, "Teléfono inválido"),
+    email: z.string().email("Correo inválido"),
+    direccion: z.string().min(5, "Dirección muy corta"),
+    observaciones: z.string().optional(),
+  });
 
   const fetchProveedores = async () => {
     try {
@@ -81,6 +92,7 @@ export default function Proveedores() {
       observaciones: "",
     });
     setProveedorEditando(null);
+    setErrores({}); 
   };
 
   // ==============================
@@ -88,7 +100,7 @@ export default function Proveedores() {
   // ==============================
   const agregarProveedor = async () => {
     try {
-      await fetch("http://localhost:3000/api/proveedores", {
+      const res = await fetch("http://localhost:3000/api/proveedores", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,6 +115,11 @@ export default function Proveedores() {
         }),
       });
 
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Error al crear proveedor");
+      }
+
       fetchProveedores();
     } catch (error) {
       console.error(error);
@@ -114,7 +131,7 @@ export default function Proveedores() {
   // ==============================
   const actualizarProveedor = async () => {
     try {
-      await fetch(
+      const res = await fetch(
         `http://localhost:3000/api/proveedores/${proveedorEditando}`,
         {
           method: "PUT",
@@ -131,6 +148,13 @@ export default function Proveedores() {
           }),
         },
       );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert("Error al actualizar proveedor");
+        return;
+      }
 
       fetchProveedores();
     } catch (error) {
@@ -196,6 +220,22 @@ export default function Proveedores() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const result = proveedorSchema.safeParse(formData);
+
+    if (!result.success) {
+      const erroresForm = {};
+
+      const listaErrores = result.error?.issues || [];
+
+      listaErrores.forEach((err) => {
+        erroresForm[err.path[0]] = err.message;
+      });
+
+      setErrores(erroresForm);
+      return;
+    }
+
+    setErrores({});
 
     if (proveedorEditando) {
       await actualizarProveedor();
@@ -205,6 +245,7 @@ export default function Proveedores() {
 
     setModalAbierto(false);
     resetForm();
+    
   };
 
   // ==============================
@@ -417,6 +458,9 @@ export default function Proveedores() {
                     setFormData({ ...formData, nombre: e.target.value })
                   }
                 />
+                {errores.nombre && (
+                  <p className="text-red-500 text-sm mt-1">{errores.nombre}</p>
+                )}
               </div>
 
               <div>
@@ -432,6 +476,11 @@ export default function Proveedores() {
                     setFormData({ ...formData, contacto: e.target.value })
                   }
                 />
+                {errores.contacto && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errores.contacto}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -447,6 +496,11 @@ export default function Proveedores() {
                     setFormData({ ...formData, telefono: e.target.value })
                   }
                 />
+                {errores.telefono && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errores.telefono}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -462,6 +516,9 @@ export default function Proveedores() {
                     setFormData({ ...formData, email: e.target.value })
                   }
                 />
+                {errores.email && (
+                  <p className="text-red-500 text-sm mt-1">{errores.email}</p>
+                )}
               </div>
             </div>
             <div>
@@ -492,7 +549,7 @@ export default function Proveedores() {
 
             <div className="flex gap-3 justify-end">
               <Button
-              className="hover:bg-amber-100"
+                className="hover:bg-amber-100"
                 type="button"
                 variant="outline"
                 onClick={() => {
@@ -502,7 +559,10 @@ export default function Proveedores() {
               >
                 Cancelar
               </Button>
-              <Button type="submit" className=" bg-yellow-400 text-black hover:bg-amber-400">
+              <Button
+                type="submit"
+                className=" bg-yellow-400 text-black hover:bg-amber-400"
+              >
                 Guardar
               </Button>
             </div>

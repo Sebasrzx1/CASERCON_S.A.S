@@ -5,7 +5,6 @@ import { Card, CardContent } from "../components/card";
 
 export default function Usuarios() {
   const { isAdministrador } = useAuth();
-
   const [usuarios, setUsuarios] = useState([]);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
@@ -164,9 +163,21 @@ export default function Usuarios() {
     if (!confirm("¿Está seguro de inhabilitar este usuario?")) return;
 
     try {
-      await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+      const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // 👈 AQUÍ VA
+        },
       });
+
+      // cuando se inhabilite se remueve su token cuando el haga una peticion al backend
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("casercon_user");
+        window.location.href = "/";
+        return;
+      }
 
       await obtenerUsuarios();
     } catch (error) {
@@ -176,12 +187,17 @@ export default function Usuarios() {
   // ==============================
   // HABILITAR
   // ==============================
+
   const habilitarUsuario = async (id) => {
     if (!confirm("¿Está seguro de habilitar este usuario?")) return;
 
     try {
       await fetch(`http://localhost:3000/api/usuarios/${id}/habilitar`, {
         method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // 👈 AQUÍ VA
+        },
       });
 
       await obtenerUsuarios();

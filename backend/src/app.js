@@ -13,7 +13,7 @@ const app = express();
 app.use(
   cors({
     origin: ["http://localhost:4200", "http://localhost:5173"],
-    Credentials: true,
+    credentials: true,
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -38,29 +38,38 @@ const recetasRoutes = require('./routes/recetasRoutes');
 const movimientosRoutes = require('./routes/movimientosRoutes');
 const proveedoresRoutes = require('./routes/proveedoresRoutes')
 const userRoutes = require('./routes/userRoutes')
+const produccionRoutes = require('./routes/produccionRoutes')
+const pedidosRouter = require('./routes/pedidosRoutes')
 
-// Rutas de autenticacion para los usuarios.
+// Ruta de autenticacion para los usuarios.
 app.use('/api/auth', atuhRoutes)
 
-//Rutas para las materias primas
+//Ruta para las materias primas
 app.use('/api/materias-primas', materiasPrimasRoutes)
 
-//Rutas para las recetas
+//Ruta para las recetas
 app.use('/api/recetas', recetasRoutes)
 
-//Rutas para los movimientos
+//Ruta para los movimientos
 app.use('/api/movimientos', movimientosRoutes)
 
-//Rutas para usuarios
+//Ruta para usuarios
 app.use("/api/usuarios", userRoutes);
 
-//Rutas para los proveedores
+//Ruta para los proveedores
 app.use('/api/proveedores', proveedoresRoutes)
 
+//Ruta para produccion
+app.use('/api/produccion', produccionRoutes)
 
-//Manejo de rutas no encontradsa (404)
+//Ruta para pedidos
+app.use('/api/pedidos', pedidosRouter)
+
+//Manejo de rutas no encontradas (404)
 app.all(/(.*)/, (req, res, next)=>{
     next(new AppError(`No se pudo encontrar ${req.originalUrl} en este servidor`, 404))
 })
+
+app.use(globalErrorHandler)
 
 module.exports = app;

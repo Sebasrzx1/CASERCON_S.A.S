@@ -13,11 +13,14 @@ const AuthService = {
     //1. Buscar usuario por email (usamos el modelo que ya creamos)
     const user = await UserModel.findByEmailWithProcesos(email);
 
-    //2. verificar si el email existe
+    //2.1 verificar si el email existe
     if (!user) {
       throw new AppError("Credenciales invalidas", httpStatus.UNAUTHORIZED);
     }
-
+    // 2.2 verificar si esta activo en el sistema
+    if (user.estado !== "Activo") {
+      throw new AppError("Usuario inhabilitado del sistema", httpStatus.FORBIDEN);
+    }
     //3. Comparar contraseñas (Texto plano vs hash en DB)
     const isMatch = await bcrypt.compare(contraseña, user.contraseña);
 
@@ -26,7 +29,7 @@ const AuthService = {
     }
 
     //4. Generar Token JWT
-    const token = signToken(user.id_usuario, user.id_rol);
+    const token = signToken(user);
 
     //5. Retornar datos (Sin la contraseña)
     //Eliminamos la contraseña del objeto antes de enviarlo.
@@ -34,7 +37,7 @@ const AuthService = {
     delete user.contraseña;
 
     return { user, token };
-  }
+  },
 };
 
-module.exports = AuthService
+module.exports = AuthService;

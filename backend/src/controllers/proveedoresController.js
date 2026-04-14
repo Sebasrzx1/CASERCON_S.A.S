@@ -58,7 +58,7 @@ const proveedoresController = {
     }
   },
 
-  async updateProveedor(req, res) {
+  async updateProveedor(req, res, next) {
     try {
       const { id } = req.params;
 
@@ -68,7 +68,9 @@ const proveedoresController = {
         ok: true,
         message: "Proveedor actualizado correctamente",
       });
-    } catch (error) {}
+    } catch (error) {
+      next(error)
+    }
   },
 
   async deleteProveedor(req, res, next) {
