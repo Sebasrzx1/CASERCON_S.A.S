@@ -7,6 +7,7 @@ import {
   FileText, Calendar, ShoppingCart, ChevronDown, ChevronUp,
   Check, Ban,
 } from "lucide-react";
+import { z } from "zod";
 
 const API = "http://localhost:3000/api/materias-primas";
 
@@ -69,6 +70,17 @@ export default function Inventario() {
   // ── Confirm ───────────────────────────────────────────────────────────────
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmData, setConfirmData] = useState(null); // { materia, accion }
+  // Después de los otros useState
+  const [errores, setErrores] = useState({});
+
+  const materiaPrimaSchema = z.object({
+  nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
+  codigo: z.string().min(1, "El código es obligatorio"),
+  abreviacion: z.string().min(1, "La abreviación es obligatoria").max(3, "Máximo 3 caracteres"),
+  id_categoria_materia: z.string().min(1, "Seleccione una categoría"),
+  stock_min: z.coerce.number().min(0, "El stock mínimo no puede ser negativo"),
+  stock_inicial: z.coerce.number().min(0.01, "El stock inicial debe ser mayor a 0"),
+});
 
   // ── Protección de ruta ────────────────────────────────────────────────────
   if (!isAdministrador) {
@@ -128,64 +140,125 @@ export default function Inventario() {
 
   // ── Modal crear / editar ──────────────────────────────────────────────────
   const abrirModal = (materia = null) => {
-    setEditando(materia);
+  setEditando(materia);
 
-    if (materia) {
-      setLoteInicialUsado(materia.loteInicialUsado);
-    }
+  if (materia) {
+    setLoteInicialUsado(materia.loteInicialUsado);
+  }
 
-    setFormulario(materia ? {
-      nombre: materia.nombre,
-      codigo: materia.codigo || "",
-      abreviacion: materia.abreviacion || "",
-      id_categoria_materia: materia.id_categoria_materia || "",
-      stock_min: materia.stockMinimo ?? "",
-      stock_inicial: materia.stockActual ?? "",
-    } : FORM_VACIO);
+  setFormulario(materia ? {
+    nombre:               materia.nombre,
+    codigo:               materia.codigo || "",
+    abreviacion:          materia.abreviacion || "",
+    id_categoria_materia: materia.id_categoria_materia
+      ? String(materia.id_categoria_materia)  // 👈 convierte a string
+      : "",
+    stock_min:            materia.stockMinimo ?? "",
+    stock_inicial:        materia.stockActual ?? "",
+  } : FORM_VACIO);
 
-    setModalAbierto(true);
-  };
+  setModalAbierto(true);
+};
 
   const cerrarModal = () => {
     setModalAbierto(false);
     setEditando(null);
     setFormulario(FORM_VACIO);
+    setErrores({});
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setGuardando(true);
-    try {
-      const url    = editando ? `${API}/${editando.id_materia}` : API;
-      const method = editando ? "PUT" : "POST";
-      const res    = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formulario,
-          stock_min:            parseFloat(formulario.stock_min) || 0,
-          stock_inicial:        parseFloat(formulario.stock_inicial) || 0, // ← nuevo
-          id_categoria_materia: parseInt(formulario.id_categoria_materia),
-          id_usuario:           user.id_usuario, // ← nuevo
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.message || "Error al guardar"); return; }
-      toast.success(editando ? "Materia prima actualizada" : "Materia prima creada");
-      cerrarModal();
-      cargarMaterias();
-    } catch {
-      toast.error("Error de conexión");
-    } finally {
-      setGuardando(false);
-    }
-  };
+  e.preventDefault();
+  setErrores({});
+
+  const schemaValidar = editando && loteInicialUsado
+    ? materiaPrimaSchema.omit({ stock_inicial: true })
+    : materiaPrimaSchema;
+
+  const result = schemaValidar.safeParse(formulario);
+
+  if (!result.success) {
+    const erroresForm = {};
+    result.error.issues.forEach((err) => {
+      erroresForm[err.path[0]] = err.message;
+    });
+    setErrores(erroresForm);
+    return;
+  }
+
+  // Duplicados — excluye el registro actual al editar
+  const duplicado = materias.find((m) => {
+    if (editando && m.id_materia === editando.id_materia) return false;
+    return (
+      m.nombre.toLowerCase() === formulario.nombre.toLowerCase() ||
+      m.codigo === formulario.codigo ||
+      m.abreviacion?.toLowerCase() === formulario.abreviacion.toLowerCase()
+    );
+  });
+
+  if (duplicado) {
+    const erroresDup = {};
+    if (duplicado.nombre.toLowerCase() === formulario.nombre.toLowerCase())
+      erroresDup.nombre = "Ya existe una materia prima con este nombre";
+    if (duplicado.codigo === formulario.codigo)
+      erroresDup.codigo = "Ya existe una materia prima con este código";
+    if (duplicado.abreviacion?.toLowerCase() === formulario.abreviacion.toLowerCase())
+      erroresDup.abreviacion = "Ya existe una materia prima con esta abreviación";
+    setErrores(erroresDup);
+    return;
+  }
+
+  setGuardando(true);
+  try {
+    const url    = editando ? `${API}/${editando.id_materia}` : API;
+    const method = editando ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...formulario,
+        stock_min:            parseFloat(formulario.stock_min) || 0,
+        stock_inicial:        parseFloat(formulario.stock_inicial) || 0,
+        id_categoria_materia: parseInt(formulario.id_categoria_materia),
+        id_usuario:           user.id_usuario,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast.error(data.message || "Error al guardar"); return; }
+    toast.success(editando ? "Materia prima actualizada" : "Materia prima creada");
+    cerrarModal();
+    cargarMaterias();
+  } catch {
+    toast.error("Error de conexión");
+  } finally {
+    setGuardando(false);
+  }
+};
 
   // ── Inhabilitar / Habilitar ───────────────────────────────────────────────
-  const solicitarAccion = (materia, accion) => {
-    setConfirmData({ materia, accion });
-    setConfirmOpen(true);
-  };
+  const solicitarAccion = async (materia, accion) => {
+  if (accion === "inhabilitar") {
+    // Verificar lotes activos
+    let lotesActivos = 0;
+    try {
+      const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
+      const data = await res.json();
+      lotesActivos = Array.isArray(data)
+        ? data.filter(l => l.estado !== "agotado" && Number(l.stock_restante) > 0).length
+        : 0;
+    } catch { /* si falla, continúa sin la info */ }
+
+    setConfirmData({
+      materia,
+      accion,
+      tieneStockComprometido: Number(materia.stockComprometido) > 0,
+      lotesActivos,
+    });
+  } else {
+    setConfirmData({ materia, accion, tieneStockComprometido: false, lotesActivos: 0 });
+  }
+  setConfirmOpen(true);
+};
 
   const confirmarAccion = async () => {
     const { materia, accion } = confirmData;
@@ -478,7 +551,10 @@ export default function Inventario() {
                   value={formulario.nombre}
                   onChange={e => setFormulario({ ...formulario, nombre: e.target.value })}
                   placeholder="Ej: Dióxido de Titanio"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errores.nombre ? "border-red-500" : "border-gray-300"
+                  }`} />
+                {errores.nombre && <p className="text-red-500 text-sm mt-1">{errores.nombre}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Código *</label>
@@ -486,7 +562,10 @@ export default function Inventario() {
                   value={formulario.codigo}
                   onChange={e => setFormulario({ ...formulario, codigo: e.target.value.replace(/\D/g, "") })}
                   placeholder="Ej: 004"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errores.codigo ? "border-red-500" : "border-gray-300"
+                  }`} />
+                {errores.codigo && <p className="text-red-500 text-sm mt-1">{errores.codigo}</p>}
                 <p className="text-xs text-gray-500 mt-1">Código numérico único</p>
               </div>
               <div>
@@ -495,7 +574,10 @@ export default function Inventario() {
                   value={formulario.abreviacion}
                   onChange={e => setFormulario({ ...formulario, abreviacion: e.target.value.toUpperCase() })}
                   placeholder="Ej: DT"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errores.abreviacion ? "border-red-500" : "border-gray-300"
+                  }`} />
+                {errores.abreviacion && <p className="text-red-500 text-sm mt-1">{errores.abreviacion}</p>}
                 <p className="text-xs text-gray-500 mt-1">Se usa para generar códigos de lote</p>
               </div>
               {(!editando || !loteInicialUsado) && (
@@ -503,7 +585,6 @@ export default function Inventario() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Stock Inicial (kg) *
                   </label>
-
                   <input
                     type="number"
                     step="0.01"
@@ -512,9 +593,13 @@ export default function Inventario() {
                     value={formulario.stock_inicial}
                     onChange={e => setFormulario({ ...formulario, stock_inicial: e.target.value })}
                     placeholder="Ej: 350"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errores.stock_inicial ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                    }`}
                   />
-
+                  {errores.stock_inicial && (
+                    <p className="text-red-500 text-sm mt-1">{errores.stock_inicial}</p>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">
                     Se creará automáticamente un lote con esta cantidad
                   </p>
@@ -522,18 +607,32 @@ export default function Inventario() {
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock Mínimo (kg) *</label>
-                <input type="number" step="0.01" min="0" required
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
                   value={formulario.stock_min}
                   onChange={e => setFormulario({ ...formulario, stock_min: e.target.value })}
                   placeholder="Ej: 100"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errores.stock_min ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errores.stock_min && (
+                  <p className="text-red-500 text-sm mt-1">{errores.stock_min}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
-                <select required
+                <select
+                  required
                   value={formulario.id_categoria_materia}
                   onChange={e => setFormulario({ ...formulario, id_categoria_materia: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errores.id_categoria_materia ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                  }`}
+                >
                   <option value="">Seleccione una categoría...</option>
                   {categorias.map(c => (
                     <option key={c.id_categoria_materia} value={c.id_categoria_materia}>
@@ -541,6 +640,9 @@ export default function Inventario() {
                     </option>
                   ))}
                 </select>
+                {errores.id_categoria_materia && (
+                  <p className="text-red-500 text-sm mt-1">{errores.id_categoria_materia}</p>
+                )}
               </div>
               {editando && (
                 <p className="text-xs text-gray-500 bg-gray-50 rounded p-2 border border-gray-200">
@@ -663,40 +765,79 @@ export default function Inventario() {
 
       {/* ── Confirm Dialog ─────────────────────────────────────────────────── */}
       {confirmOpen && confirmData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              {confirmData.accion === "inhabilitar"
-                ? <Ban className="w-8 h-8 text-red-500" />
-                : <Check className="w-8 h-8 text-green-500" />
-              }
-              <h2 className="font-bold text-gray-900 text-lg">
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} Materia Prima
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              ¿Estás seguro de que deseas {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"}{" "}
-              <span className="font-semibold text-gray-900">{confirmData.materia.nombre}</span>?
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+      <div className="flex items-center gap-3 mb-4">
+        {confirmData.accion === "inhabilitar"
+          ? <Ban className="w-8 h-8 text-red-500" />
+          : <Check className="w-8 h-8 text-green-500" />
+        }
+        <h2 className="font-bold text-gray-900 text-lg">
+          {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} materia prima
+        </h2>
+      </div>
+
+      <p className="text-gray-600 mb-4">
+        ¿Estás seguro de que deseas {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"}{" "}
+        <span className="font-semibold text-gray-900">{confirmData.materia.nombre}</span>?
+      </p>
+
+      {/* Advertencia stock comprometido */}
+      {confirmData.tieneStockComprometido && (
+        <div className="flex gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Stock comprometido activo</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Esta materia prima tiene{" "}
+              <span className="font-semibold">
+                {Number(confirmData.materia.stockComprometido).toFixed(2)} kg
+              </span>{" "}
+              comprometidos en órdenes de producción pendientes o en proceso.
             </p>
-            <div className="flex gap-3">
-              <button onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={confirmarAccion}
-                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
-                  confirmData.accion === "inhabilitar"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}>
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"}
-              </button>
-            </div>
           </div>
         </div>
       )}
 
+      {/* Advertencia lotes activos */}
+      {confirmData.lotesActivos > 0 && (
+          <div className="flex gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
+            <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">Lotes con stock disponible</p>
+              <p className="text-sm text-red-700 mt-0.5">
+                Tiene{" "}
+                <span className="font-semibold">
+                  {confirmData.lotesActivos} lote{confirmData.lotesActivos !== 1 ? "s" : ""}
+                </span>{" "}
+                activo{confirmData.lotesActivos !== 1 ? "s" : ""} con stock sin agotar. Al inhabilitar, ese stock quedará inaccesible.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmarAccion}
+            className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+              confirmData.accion === "inhabilitar"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
+          >
+            {confirmData.accion === "inhabilitar" ? "Inhabilitar de todas formas" : "Habilitar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
     </div>
   );
 }
-//pendiente a pruebas :3 release v1.0

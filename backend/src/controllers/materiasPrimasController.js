@@ -1,5 +1,5 @@
 const materiasPrimasService = require('../services/materiasPrimasService');
-
+const { validateCreateMateriaPrima, validateUpdateMateriaPrima } = require("../validations/InventarioValidator");
 const materiasPrimasController = {
 
   // ─── Ya existente: GET /api/materias ──────────────────────────────────────
@@ -38,26 +38,34 @@ async getLotesByMateria(req, res) {
 
   // ─── POST /api/materias ───────────────────────────────────────────────────
 async createMateria(req, res) {
-    try {
-    const result = await materiasPrimasService.createMateria(req.body);
-    res.status(201).json(result);
-    } catch (error) {
+  const result = validateCreateMateriaPrima(req.body);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.issues[0].message });
+  }
+  try {
+    const data = await materiasPrimasService.createMateria(req.body);
+    res.status(201).json(data);
+  } catch (error) {
     console.error("Error en el controlador createMateria:", error);
     const status = error.status || 500;
     res.status(status).json({ message: error.msg || "Error al crear materia prima" });
-    }
+  }
 },
 
   // ─── PUT /api/materias/:id ────────────────────────────────────────────────
 async updateMateria(req, res) {
-    try {
-    const result = await materiasPrimasService.updateMateria(req.params.id, req.body);
-    res.status(200).json(result);
-    } catch (error) {
+  const result = validateUpdateMateriaPrima(req.body);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.issues[0].message });
+  }
+  try {
+    const data = await materiasPrimasService.updateMateria(req.params.id, req.body);
+    res.status(200).json(data);
+  } catch (error) {
     console.error("Error en el controlador updateMateria:", error);
     const status = error.status || 500;
     res.status(status).json({ message: error.msg || "Error al actualizar materia prima" });
-    }
+  }
 },
 
   // ─── DELETE /api/materias/:id ─────────────────────────────────────────────
