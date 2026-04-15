@@ -1,7 +1,6 @@
-const db = require('../config/conexion_db');
+const db = require("../config/conexion_db");
 
 const ProduccionModel = {
-
   // Obtener todas las órdenes de producción
   async findAll() {
     const query = `
@@ -18,7 +17,7 @@ const ProduccionModel = {
         ON op.id_receta = r.id_receta
       INNER JOIN usuarios u 
         ON op.id_usuario_creador = u.id_usuario
-      ORDER BY op.fecha_creacion DESC;
+      ORDER BY op.fecha_creacion ASC;
     `;
 
     const [rows] = await db.execute(query);
@@ -55,7 +54,7 @@ const ProduccionModel = {
     const values = [
       data.id_receta,
       data.id_usuario_creador,
-      data.cantidad_producir
+      data.cantidad_producir,
     ];
 
     const [result] = await db.execute(query, values);
@@ -87,8 +86,28 @@ const ProduccionModel = {
     `;
 
     await db.execute(query, [id_usuario_fin, id]);
-  }
+  },
 
+  //Para eliminar una orden de produccion con hasMovimientos y deleteOrden seran los insumos o las consultas SQL para evaluar si una orden tuvo movimientos para poder eliminarse
+  async hasMovimientos(id) {
+    const query = `
+    SELECT COUNT(*) AS total
+    FROM movimientos_inventario
+    WHERE id_orden_produccion = ?;
+  `;
+
+    const [rows] = await db.execute(query, [id]);
+    return rows[0].total > 0;
+  },
+
+  async deleteOrden(id) {
+    const query = `
+    DELETE FROM ordenes_produccion
+    WHERE id_orden_produccion = ?;
+  `;
+
+    await db.execute(query, [id]);
+  },
 };
 
 module.exports = ProduccionModel;
