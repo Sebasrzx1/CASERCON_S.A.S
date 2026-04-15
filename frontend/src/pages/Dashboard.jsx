@@ -71,28 +71,23 @@ export default function Dashboard() {
     fetchMaterias();
   }, []);
 
-  // Fetch para traer las estadisticas de recetas para el dashboard.
-  useEffect(() => {
-    const fetchRecetas = async () => {
-      try {
-        const res = await fetch("http://localhost:3000/api/recetas");
-        const data = await res.json();
-
-        setEstadisticas((prev) => ({
-          ...prev,
-          totalRecetas: data.length,
-        }));
-
-        // Si quieres almacenar las recetas completas
-        // const recetasConDetalle = data;
-        // setRecetas(recetasConDetalle);
-      } catch (error) {
-        console.error("Error al obtener recetas:", error);
-      }
-    };
-
-    fetchRecetas();
-  }, []);
+useEffect(() => {
+  const fetchRecetas = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/recetas");
+      const data = await res.json();
+      // El backend devuelve { status, result, data: [] }
+      const lista = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      setEstadisticas((prev) => ({
+        ...prev,
+        totalRecetas: lista.filter((r) => r.estado === "Activo").length,
+      }));
+    } catch (error) {
+      console.error("Error al obtener recetas:", error);
+    }
+  };
+  fetchRecetas();
+}, []);
 
 
   
