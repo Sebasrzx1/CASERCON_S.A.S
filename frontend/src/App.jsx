@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Login } from "./pages/Login";
 import { Layout } from "./components/Layout";
-
+import { Toaster } from "sonner";
 
 
 
@@ -19,6 +19,7 @@ import Usuarios from "./pages/Usuarios";
 function App() {
   return (
     <BrowserRouter>
+    <Toaster position="top-right" richColors />
       <Routes>
         {/* Login */}
         <Route path="/" element={<Login />} />
