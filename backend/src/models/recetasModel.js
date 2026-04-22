@@ -12,20 +12,23 @@ const recetasModel = {
     return rows;
   },
 
-  async findDetalleByReceta(id_receta) {
-    const query = `
-      SELECT 
-        dr.id_detalle_receta,
-        dr.id_materia,
-        mp.nombre AS nombre_materia,
-        dr.cantidad_porcentaje
-      FROM detalle_receta dr
-      INNER JOIN materias_primas mp ON dr.id_materia = mp.id_materia
-      WHERE dr.id_receta = ?;
-    `;
-    const [rows] = await db.execute(query, [id_receta]);
-    return rows;
-  },
+async findDetalleByReceta(id_receta) {
+  const query = `
+    SELECT 
+      dr.id_detalle_receta,
+      dr.id_materia,
+      mp.nombre AS nombre_materia,
+      mp.codigo,
+      cm.nombre_categoria_materia AS categoria,
+      dr.cantidad_porcentaje
+    FROM detalle_receta dr
+    INNER JOIN materias_primas mp ON dr.id_materia = mp.id_materia
+    INNER JOIN categoria_materias cm ON mp.id_categoria_materia = cm.id_categoria_materia
+    WHERE dr.id_receta = ?;
+  `;
+  const [rows] = await db.execute(query, [id_receta]);
+  return rows;
+},
 
   async findById(id_receta) {
     const query = `
