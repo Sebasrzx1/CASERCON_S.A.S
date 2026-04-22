@@ -31,7 +31,7 @@ const producccionService = {
     }
   },
 
-  // Ahora valida stock disponible antes de crear la orden
+  // Valida stock disponible antes de crear la orden
   async createOrdenProduccion(data) {
     try {
       if (
@@ -116,7 +116,7 @@ const producccionService = {
     }
   },
 
-  // Ahora descuenta el stock por FIFO y registra movimientos de salida
+  // Descuenta stock por FIFO y registra movimientos de salida
   async finalizarProduccion(id, id_usuario) {
     try {
       const ordenProduccion = await produccionModel.findById(id);
@@ -135,7 +135,6 @@ const producccionService = {
         );
       }
 
-      // Obtener ingredientes de la receta vinculada a esta orden
       const ingredientes = await produccionModel.findIngredientesByOrden(id);
 
       if (!ingredientes || ingredientes.length === 0) {
@@ -145,7 +144,6 @@ const producccionService = {
         );
       }
 
-      // Todo se ejecuta en una transacción para que sea todo o nada
       const conn = await db.getConnection();
       try {
         await conn.beginTransaction();
@@ -154,7 +152,6 @@ const producccionService = {
           let cantidadRestante =
             (parseFloat(ing.cantidad_porcentaje) / 100) * parseFloat(ordenProduccion.cantidad_producir);
 
-          // Lotes ordenados FIFO (fecha_ingreso ASC, stock > 0)
           const lotes = await produccionModel.findLotesFIFO(ing.id_materia);
 
           for (const lote of lotes) {
@@ -162,7 +159,6 @@ const producccionService = {
 
             const consumir = Math.min(Number(lote.stock_restante), cantidadRestante);
 
-            // Registrar movimiento de salida
             // El trigger trg_salida_lote descuenta stock_restante automáticamente
             await conn.execute(
               `INSERT INTO movimientos_inventario
@@ -171,7 +167,6 @@ const producccionService = {
               [ing.id_materia, lote.id_lote, id_usuario, consumir, id],
             );
 
-            // Si el lote queda en 0, marcarlo como agotado
             const nuevoStock = Number(lote.stock_restante) - consumir;
             if (nuevoStock <= 0) {
               await conn.execute(
@@ -183,7 +178,6 @@ const producccionService = {
             cantidadRestante -= consumir;
           }
 
-          // Si aún queda cantidad por descontar, no había stock suficiente
           if (cantidadRestante > 0.001) {
             await conn.rollback();
             throw new AppError(
@@ -193,7 +187,6 @@ const producccionService = {
           }
         }
 
-        // Actualizar la orden a Completada
         await conn.execute(
           `UPDATE ordenes_produccion
            SET estado = 'Completada', id_usuario_fin = ?, fecha_finalizacion = NOW()
@@ -216,8 +209,42 @@ const producccionService = {
     }
   },
 
+  async deleteProduccion(id) {
+    try {
+      const orden = await produccionModel.findById(id);
+
+      if (!orden) {
+        throw new AppError("Orden no encontrada", httpStatus.NOT_FOUND);
+      }
+
+      // Para poder eliminarse evaluasmos que su estado este en pendiente
+      if (orden.estado !== "Pendiente") {
+        throw new AppError(
+          "Solo puedes eliminar órdenes en estado Pendiente",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Y evaluamos que no tenga movimientos asociados
+      const tieneMovimientos = await produccionModel.hasMovimientos(id);
+
+      if (tieneMovimientos) {
+        throw new AppError(
+          "No puedes eliminar la orden porque tiene movimientos asociados",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      await produccionModel.deleteOrden(id);
+
+      return { message: "Orden eliminada correctamente" };
+    } catch (error) {
+      console.error("Error en deleteProduccion:", error);
+      throw error;
+    }
+  },
+
   // Verifica stock por ingrediente para el preview del frontend
-  // Devuelve { posible, ingredientes: [{ id_materia, nombre_materia, cantidad_porcentaje, cantidad_necesaria, stock_disponible, suficiente }] }
   async verificarStockParaOrden(id_receta, cantidad_producir) {
     try {
       const queryIngredientes = `
@@ -263,66 +290,31 @@ const producccionService = {
     }
   },
 
-  async deleteProduccion(id) {
-    try {
-      const orden = await produccionModel.findById(id);
-
-      if (!orden) {
-        throw new AppError("Orden no encontrada", httpStatus.NOT_FOUND);
-      }
-
-      // Para poder eliminarse evaluasmos que su estado este en pendiente
-      if (orden.estado !== "Pendiente") {
-        throw new AppError(
-          "Solo puedes eliminar órdenes en estado Pendiente",
-          httpStatus.BAD_REQUEST,
-        );
-      }
-
-      // Y evaluamos que no tenga movimientos asociados
-      const tieneMovimientos = await produccionModel.hasMovimientos(id);
-
-      if (tieneMovimientos) {
-        throw new AppError(
-          "No puedes eliminar la orden porque tiene movimientos asociados",
-          httpStatus.BAD_REQUEST,
-        );
-      }
-
-      await produccionModel.deleteOrden(id);
-
-      return { message: "Orden eliminada correctamente" };
-    } catch (error) {
-      console.error("Error en deleteProduccion:", error);
-      throw error;
-    }
-  },
-  
   // Reasigna el operario de una orden en proceso
   async reasignarProduccion(id, id_usuario_inicio) {
     try {
       const orden = await produccionModel.findById(id);
- 
+
       if (!orden) {
         throw new AppError("Orden no encontrada", httpStatus.NOT_FOUND);
       }
- 
+
       if (orden.estado !== "En proceso") {
         throw new AppError(
           "Solo se puede reasignar el operario de órdenes en proceso",
           httpStatus.BAD_REQUEST,
         );
       }
- 
+
       await produccionModel.reasignarOrden(id, id_usuario_inicio);
- 
+
       return { message: "Operario reasignado correctamente" };
     } catch (error) {
       console.error("Error en reasignarProduccion:", error);
       throw error;
     }
   },
- 
+
   // Lista los operarios activos (para el select del modal de reasignación)
   async getOperarios() {
     try {
@@ -330,6 +322,45 @@ const producccionService = {
       return operarios;
     } catch (error) {
       console.error("Error en getOperarios:", error);
+      throw error;
+    }
+  },
+
+  // Editar cantidad e id_receta de una orden pendiente
+  async editarOrden(id, cantidad_producir, id_receta) {
+    try {
+      const orden = await produccionModel.findById(id);
+
+      if (!orden) {
+        throw new AppError("Orden no encontrada", httpStatus.NOT_FOUND);
+      }
+
+      if (orden.estado !== "Pendiente") {
+        throw new AppError(
+          "Solo se puede editar una orden en estado Pendiente",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (!cantidad_producir || Number(cantidad_producir) <= 0) {
+        throw new AppError(
+          "La cantidad debe ser mayor a 0",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (!id_receta) {
+        throw new AppError(
+          "Debe seleccionar una receta",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      await produccionModel.editarOrden(id, cantidad_producir, id_receta);
+
+      return { message: "Orden actualizada correctamente" };
+    } catch (error) {
+      console.error("Error en editarOrden:", error);
       throw error;
     }
   },

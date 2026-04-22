@@ -52,6 +52,7 @@ export default function ProduccionPage() {
   const [modalEditarCantidad, setModalEditarCantidad] = useState(false);
   const [ordenEditando, setOrdenEditando] = useState(null);
   const [nuevaCantidad, setNuevaCantidad] = useState("");
+  const [nuevaRecetaId, setNuevaRecetaId] = useState("");
   const [stockPreviewEditar, setStockPreviewEditar] = useState(null);
   const [loadingStockEditar, setLoadingStockEditar] = useState(false);
 
@@ -173,7 +174,7 @@ export default function ProduccionPage() {
 
   // Verificar stock al editar cantidad — debounce 400ms
   useEffect(() => {
-    if (!ordenEditando || !nuevaCantidad || Number(nuevaCantidad) <= 0) {
+    if (!ordenEditando || !nuevaCantidad || Number(nuevaCantidad) <= 0 || !nuevaRecetaId) {
       setStockPreviewEditar(null);
       return;
     }
@@ -181,7 +182,7 @@ export default function ProduccionPage() {
     const timeout = setTimeout(async () => {
       try {
         const res = await fetch(
-          `http://localhost:3000/api/produccion/verificar-stock?id_receta=${ordenEditando.id_receta}&cantidad_producir=${nuevaCantidad}`,
+          `http://localhost:3000/api/produccion/verificar-stock?id_receta=${nuevaRecetaId}&cantidad_producir=${nuevaCantidad}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         const data = await res.json();
@@ -193,7 +194,7 @@ export default function ProduccionPage() {
       }
     }, 400);
     return () => clearTimeout(timeout);
-  }, [ordenEditando, nuevaCantidad]);
+  }, [ordenEditando, nuevaCantidad, nuevaRecetaId]);
 
   // ── Crear orden ─────────────────────────────────────────────────
   const crearProduccion = async () => {
@@ -294,6 +295,7 @@ export default function ProduccionPage() {
   const abrirModalEditarCantidad = (produccion) => {
     setOrdenEditando(produccion);
     setNuevaCantidad(String(produccion.cantidad_producir));
+    setNuevaRecetaId(String(produccion.id_receta));
     setStockPreviewEditar(null);
     setModalEditarCantidad(true);
   };
@@ -302,6 +304,7 @@ export default function ProduccionPage() {
     setModalEditarCantidad(false);
     setOrdenEditando(null);
     setNuevaCantidad("");
+    setNuevaRecetaId("");
     setStockPreviewEditar(null);
   };
 
@@ -319,7 +322,10 @@ export default function ProduccionPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ cantidad_producir: Number(nuevaCantidad) }),
+          body: JSON.stringify({
+            cantidad_producir: Number(nuevaCantidad),
+            id_receta: Number(nuevaRecetaId),
+          }),
         },
       );
       const data = await res.json();
@@ -567,19 +573,59 @@ export default function ProduccionPage() {
   };
 
   // ── Estadísticas ────────────────────────────────────────────────
-  const estadisticas = useMemo(
-    () => ({
-      total: producciones.length,
-      pendientes: producciones.filter((p) => p.estado === "Pendiente").length,
-      enProceso: producciones.filter((p) => p.estado === "En proceso").length,
-      completadas: producciones.filter((p) => p.estado === "Completada").length,
-    }),
-    [producciones],
-  );
+  // Pendientes: conteo global para todos
+  // En proceso y Completadas: solo las propias si es operario
+  const estadisticas = useMemo(() => {
+    const esSoloOperario = !isAdministrador;
+    const miId = Number(user?.id_usuario);
+
+    const pendientes = producciones.filter(
+      (p) => p.estado === "Pendiente"
+    ).length;
+
+    const enProceso = producciones.filter(
+      (p) =>
+        p.estado === "En proceso" &&
+        (!esSoloOperario || Number(p.id_usuario_inicio) === miId)
+    ).length;
+
+    const completadas = producciones.filter(
+      (p) =>
+        p.estado === "Completada" &&
+        (!esSoloOperario || Number(p.id_usuario_fin) === miId)
+    ).length;
+
+    // Total: para admin es todo el sistema; para operario es lo que puede ver
+    const total = esSoloOperario
+      ? pendientes + enProceso + completadas
+      : producciones.length;
+
+    return { total, pendientes, enProceso, completadas };
+  }, [producciones, isAdministrador, user]);
 
   // ── Filtrado ────────────────────────────────────────────────────
+  // Operario: en "En proceso" solo ve sus órdenes propias
+  //           en "Completada" solo ve las que él completó
+  //           en "Pendiente" ve todas (son globales)
   const produccionesFiltradas = useMemo(() => {
-    let resultado = producciones.filter((p) => p.estado === filtroEstado);
+    const esSoloOperario = !isAdministrador;
+    const miId = Number(user?.id_usuario);
+
+    let resultado = producciones.filter((p) => {
+      if (p.estado !== filtroEstado) return false;
+
+      // Operario viendo tab "En proceso": solo sus órdenes
+      if (esSoloOperario && p.estado === "En proceso") {
+        return Number(p.id_usuario_inicio) === miId;
+      }
+
+      // Operario viendo tab "Completada": solo las que él completó
+      if (esSoloOperario && p.estado === "Completada") {
+        return Number(p.id_usuario_fin) === miId;
+      }
+
+      return true; // Pendientes: todos las ven
+    });
 
     // El filtro de fecha aplica solo en Pendiente y Completada
     if (filtroEstado !== "En proceso") {
@@ -605,7 +651,7 @@ export default function ProduccionPage() {
       (a, b) =>
         new Date(b.fecha_creacion || 0) - new Date(a.fecha_creacion || 0),
     );
-  }, [producciones, filtroEstado, fechaInicio, fechaFin]);
+  }, [producciones, filtroEstado, fechaInicio, fechaFin, isAdministrador, user]);
 
   // ── Calcular materiales desde ingredientes de la receta ─────────
   const calcularMateriales = (ingredientes, cantidad) => {
@@ -871,23 +917,34 @@ export default function ProduccionPage() {
                     {/* ── En proceso ── */}
                     {esProceso && (
                       <>
-                        {/* Imprimir — admin y operario */}
-                        <button
-                          onClick={() => imprimirOrden(p)}
-                          className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-                        >
-                          <Printer className="w-4 h-4" />
-                          Imprimir
-                        </button>
+                        {/* Imprimir, editar receta y completar — solo el operario asignado o el admin */}
+                        {(isAdministrador || Number(p.id_usuario_inicio) === Number(user?.id_usuario)) && (
+                          <>
+                            <button
+                              onClick={() => imprimirOrden(p)}
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                            >
+                              <Printer className="w-4 h-4" />
+                              Imprimir
+                            </button>
 
-                        {/* Editar receta — admin y operario */}
-                        <button
-                          onClick={() => abrirModalEditarReceta(p)}
-                          className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
-                        >
-                          <Edit className="w-4 h-4" />
-                          Editar receta
-                        </button>
+                            <button
+                              onClick={() => abrirModalEditarReceta(p)}
+                              className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Editar receta
+                            </button>
+
+                            <button
+                              onClick={() => finalizarProduccion(p.id_orden_produccion)}
+                              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                            >
+                              <Check className="w-4 h-4" />
+                              Completar
+                            </button>
+                          </>
+                        )}
 
                         {/* Reasignar — solo admin */}
                         {isAdministrador && (
@@ -899,14 +956,6 @@ export default function ProduccionPage() {
                             Reasignar
                           </button>
                         )}
-
-                        <button
-                          onClick={() => finalizarProduccion(p.id_orden_produccion)}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                        >
-                          <Check className="w-4 h-4" />
-                          Completar
-                        </button>
                       </>
                     )}
                   </div>
@@ -1210,6 +1259,29 @@ export default function ProduccionPage() {
             </div>
 
             <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Receta
+                </label>
+                <select
+                  value={nuevaRecetaId}
+                  onChange={(e) => {
+                    setNuevaRecetaId(e.target.value);
+                    setStockPreviewEditar(null);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccione una receta</option>
+                  {recetas
+                    .filter((r) => r.estado === "Activo")
+                    .map((r) => (
+                      <option key={r.id_receta} value={r.id_receta}>
+                        {r.nombre_producto}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nueva Cantidad a Producir (KG)

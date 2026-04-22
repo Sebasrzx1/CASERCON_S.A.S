@@ -137,13 +137,14 @@ CREATE TABLE lotes (
 CREATE TABLE recetas (
     id_receta INT AUTO_INCREMENT PRIMARY KEY,
     nombre_producto VARCHAR(100) NOT NULL,
+    estado ENUM('Activo', 'Inhabilitado') DEFAULT 'Activo' NOT NULL,
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 13. Creacion de la tabla detalle_receta.
 CREATE TABLE detalle_receta (
     id_detalle_receta INT AUTO_INCREMENT PRIMARY KEY,
-    id_receta INT NOT NULL ,
+    id_receta INT NOT NULL,
     id_materia INT NOT NULL,
     cantidad_porcentaje DECIMAL(5,2) NOT NULL,
     FOREIGN KEY (id_receta) REFERENCES recetas(id_receta),
@@ -159,7 +160,7 @@ CREATE TABLE ordenes_produccion (
     id_usuario_creador INT NOT NULL,
     id_usuario_inicio INT,
     id_usuario_fin INT,
-    cantidad_producir DECIMAL(12,4) NOT NULL,
+    cantidad_producir DECIMAL(12,2) NOT NULL,
     estado ENUM('Pendiente','En proceso','Completada') DEFAULT 'Pendiente',
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_finalizacion DATETIME,
@@ -273,21 +274,11 @@ INSERT INTO detalle_receta (id_receta,id_materia,cantidad_porcentaje) VALUES
 (1,1,10.00),
 (1,2,12.00);
 
-INSERT INTO ordenes_produccion (id_receta,id_usuario_creador,id_usuario_inicio,id_usuario_fin,cantidad_producir,estado) VALUES
-(1,1,2,2,100,'Completada');
-
-INSERT INTO ordenes_produccion 
-  (id_receta, id_usuario_creador, cantidad_producir, estado)
-VALUES 
-  (1, 1, 200, 'Pendiente');
 -- ====================================================================================================================================
 -- 												INSERT INTO movimientos inventario
 -- ====================================================================================================================================
 
-INSERT INTO movimientos_inventario (id_materia,id_lote,id_usuario,tipo_movimiento,cantidad,id_orden_produccion, observacion) VALUES
-(1,1,2,'Salida',30,1,'ño'),
-(2,2,2,'Salida',40,1,'chi'),
-(1, 1, 2, 'Entrada', 100, 1, 'Ingreso de materia prima por pedido OC-1001');
+
 
 -- ===================== Consultas principales y fundamentales segun las necesidades =======================================
 
@@ -425,10 +416,11 @@ SELECT * FROM usuarios;
         AND l.estado = 'activo'
       GROUP BY mp.id_materia, mp.nombre, mp.stock_min;
 
-SELECT * FROM recetas;
+SELECT * FROM detalle_receta;
 
 UPDATE usuarios SET contraseña = "$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u" WHERE id_usuario = 8;
 
 select * from usuarios;
+select * from ordenes_produccion;
 
 select * from proveedores where email = "ventas@quimicos.com";

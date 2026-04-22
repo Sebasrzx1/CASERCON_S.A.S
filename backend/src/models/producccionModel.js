@@ -15,7 +15,8 @@ const ProduccionModel = {
         op.estado,
         op.fecha_creacion,
         op.fecha_finalizacion,
-        op.id_usuario_inicio
+        op.id_usuario_inicio,
+        op.id_usuario_fin
       FROM ordenes_produccion op
       INNER JOIN recetas r 
         ON op.id_receta = r.id_receta
@@ -167,6 +168,17 @@ const ProduccionModel = {
     const [rows] = await db.execute(query, [id_materia, id_materia]);
     const { stock_total, stock_comprometido } = rows[0];
     return Math.max(0, Number(stock_total) - Number(stock_comprometido));
+  },
+
+  // Editar cantidad e id_receta de una orden pendiente
+  async editarOrden(id, cantidad_producir, id_receta) {
+    const query = `
+      UPDATE ordenes_produccion
+      SET cantidad_producir = ?, id_receta = ?
+      WHERE id_orden_produccion = ?;
+    `;
+
+    await db.execute(query, [cantidad_producir, id_receta, id]);
   },
 
   // Reasignar operario a una orden en proceso
