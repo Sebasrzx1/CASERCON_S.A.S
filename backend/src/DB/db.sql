@@ -78,6 +78,8 @@ CREATE TABLE pedidos (
     estado ENUM('pendiente', 'recibido', 'cancelado') DEFAULT 'pendiente',
     id_usuario_creador INT NOT NULL, 
     id_usuario_receptor INT,
+	id_pedido_origen INT,
+	FOREIGN KEY (id_pedido_origen) REFERENCES pedidos(id_pedido),
 	FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor),
     FOREIGN  KEY (id_usuario_creador) REFERENCES usuarios(id_usuario),
     FOREIGN KEY (id_usuario_receptor) REFERENCES usuarios(id_usuario)
@@ -106,7 +108,7 @@ CREATE TABLE detalle_pedidos (
     id_detalle_pedido INT AUTO_INCREMENT PRIMARY KEY,
     id_pedido INT NOT NULL,
     id_materia INT NOT NULL,
-    cantidad_solicitada DECIMAL(12,4) NOT NULL,
+    cantidad_solicitada DECIMAL(12,2) NOT NULL,
     FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
     FOREIGN KEY (id_materia) REFERENCES materias_primas(id_materia)
 );
@@ -118,8 +120,8 @@ CREATE TABLE lotes (
     numero_lote INT NOT NULL,
     id_detalle_pedido INT NULL,
     codigo_lote VARCHAR(50) UNIQUE NOT NULL,
-    stock_inicial DECIMAL(12,4) NOT NULL,
-    stock_restante DECIMAL(12,4) NOT NULL,
+    stock_inicial DECIMAL(12,2) NOT NULL,
+    stock_restante DECIMAL(12,2) NOT NULL,
     fecha_ingreso DATETIME DEFAULT CURRENT_TIMESTAMP,
     estado ENUM('activo','agotado') DEFAULT 'activo',
     FOREIGN KEY (id_materia) REFERENCES materias_primas(id_materia),
@@ -137,13 +139,14 @@ CREATE TABLE lotes (
 CREATE TABLE recetas (
     id_receta INT AUTO_INCREMENT PRIMARY KEY,
     nombre_producto VARCHAR(100) NOT NULL,
+    estado ENUM('Activo', 'Inhabilitado') DEFAULT 'Activo' NOT NULL,
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 13. Creacion de la tabla detalle_receta.
 CREATE TABLE detalle_receta (
     id_detalle_receta INT AUTO_INCREMENT PRIMARY KEY,
-    id_receta INT NOT NULL ,
+    id_receta INT NOT NULL,
     id_materia INT NOT NULL,
     cantidad_porcentaje DECIMAL(5,2) NOT NULL,
     FOREIGN KEY (id_receta) REFERENCES recetas(id_receta),
@@ -159,7 +162,7 @@ CREATE TABLE ordenes_produccion (
     id_usuario_creador INT NOT NULL,
     id_usuario_inicio INT,
     id_usuario_fin INT,
-    cantidad_producir DECIMAL(12,4) NOT NULL,
+    cantidad_producir DECIMAL(12,2) NOT NULL,
     estado ENUM('Pendiente','En proceso','Completada') DEFAULT 'Pendiente',
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_finalizacion DATETIME,
@@ -180,7 +183,7 @@ CREATE TABLE movimientos_inventario (
     id_lote INT,
     id_usuario INT NOT NULL,
     tipo_movimiento ENUM('Entrada','Salida','Devolucion') NOT NULL,
-    cantidad DECIMAL(12,4) NOT NULL,
+    cantidad DECIMAL(12,2) NOT NULL,
     id_pedido INT,
     id_orden_produccion INT,
     fecha DATETIME DEFAULT CURRENT_TIMESTAMP,

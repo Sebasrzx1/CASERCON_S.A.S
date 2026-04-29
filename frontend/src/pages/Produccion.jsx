@@ -13,6 +13,8 @@ import {
   Edit,
   Printer,
   Users,
+  Search, 
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -40,13 +42,15 @@ export default function ProduccionPage() {
   // ── Filtros de fecha (Pendiente y Completada) ───────────────────
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   // Limpia fechas al cambiar de tab para no arrastrar filtros viejos
   const cambiarFiltroEstado = (valor) => {
-    setFiltroEstado(valor);
-    setFechaInicio("");
-    setFechaFin("");
-  };
+  setFiltroEstado(valor);
+  setFechaInicio("");
+  setFechaFin("");
+  setBusqueda("");
+};
 
   // ── Modal editar cantidad (solo admin, orden pendiente) ─────────────────────
   const [modalEditarCantidad, setModalEditarCantidad] = useState(false);
@@ -579,33 +583,41 @@ export default function ProduccionPage() {
 
   // ── Filtrado ────────────────────────────────────────────────────
   const produccionesFiltradas = useMemo(() => {
-    let resultado = producciones.filter((p) => p.estado === filtroEstado);
+  let resultado = producciones.filter((p) => p.estado === filtroEstado);
 
-    // El filtro de fecha aplica solo en Pendiente y Completada
-    if (filtroEstado !== "En proceso") {
-      if (fechaInicio) {
-        const inicio = new Date(fechaInicio);
-        inicio.setHours(0, 0, 0, 0);
-        resultado = resultado.filter((p) => {
-          const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
-          return campo && new Date(campo) >= inicio;
-        });
-      }
-      if (fechaFin) {
-        const fin = new Date(fechaFin);
-        fin.setHours(23, 59, 59, 999);
-        resultado = resultado.filter((p) => {
-          const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
-          return campo && new Date(campo) <= fin;
-        });
-      }
-    }
-
-    return resultado.sort(
-      (a, b) =>
-        new Date(b.fecha_creacion || 0) - new Date(a.fecha_creacion || 0),
+  if (busqueda.trim()) {
+    const term = busqueda.toLowerCase();
+    resultado = resultado.filter((p) =>
+      p.nombre_producto?.toLowerCase().includes(term) ||
+      p.codigo_orden?.toLowerCase().includes(term) ||
+      p.usuario_creador?.toLowerCase().includes(term) ||
+      p.usuario_inicio?.toLowerCase().includes(term)
     );
-  }, [producciones, filtroEstado, fechaInicio, fechaFin]);
+  }
+
+  if (filtroEstado !== "En proceso") {
+    if (fechaInicio) {
+      const inicio = new Date(fechaInicio);
+      inicio.setHours(0, 0, 0, 0);
+      resultado = resultado.filter((p) => {
+        const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
+        return campo && new Date(campo) >= inicio;
+      });
+    }
+    if (fechaFin) {
+      const fin = new Date(fechaFin);
+      fin.setHours(23, 59, 59, 999);
+      resultado = resultado.filter((p) => {
+        const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
+        return campo && new Date(campo) <= fin;
+      });
+    }
+  }
+
+  return resultado.sort(
+    (a, b) => new Date(b.fecha_creacion || 0) - new Date(a.fecha_creacion || 0)
+  );
+}, [producciones, filtroEstado, fechaInicio, fechaFin, busqueda]);
 
   // ── Calcular materiales desde ingredientes de la receta ─────────
   const calcularMateriales = (ingredientes, cantidad) => {
@@ -711,69 +723,78 @@ export default function ProduccionPage() {
         </div>
       </div>
 
-      {/* ── Filtros de estado ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          {[
-            {
-              label: "Pendientes",
-              value: "Pendiente",
-              active: "bg-yellow-600",
-            },
-            { label: "En Proceso", value: "En proceso", active: "bg-blue-600" },
-            {
-              label: "Completadas",
-              value: "Completada",
-              active: "bg-green-600",
-            },
-          ].map(({ label, value, active }) => (
-            <button
-              key={value}
-              onClick={() => cambiarFiltroEstado(value)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === value
-                  ? `${active} text-white`
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+  {/* Tabs — siempre visibles */}
+  <div className="flex gap-2 flex-wrap">
+    {[
+      { label: "Pendientes", value: "Pendiente", active: "bg-yellow-600" },
+      { label: "En Proceso", value: "En proceso", active: "bg-blue-600"  },
+      { label: "Completadas", value: "Completada", active: "bg-green-600" },
+    ].map(({ label, value, active }) => (
+      <button
+        key={value}
+        onClick={() => cambiarFiltroEstado(value)}
+        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+          filtroEstado === value
+            ? `${active} text-white`
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+        }`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
 
-        {/* Filtro de fechas — solo en Pendiente y Completada */}
-        {filtroEstado !== "En proceso" && (
-          <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-gray-100">
-            <span className="text-sm text-gray-500">
-              {filtroEstado === "Completada" ? "Fecha completada:" : "Fecha creación:"}
-            </span>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-gray-400 text-sm">—</span>
-              <input
-                type="date"
-                value={fechaFin}
-                min={fechaInicio || undefined}
-                onChange={(e) => setFechaFin(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            {(fechaInicio || fechaFin) && (
-              <button
-                onClick={() => { setFechaInicio(""); setFechaFin(""); }}
-                className="text-sm text-gray-400 hover:text-gray-600 underline"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
+  {/* Búsqueda — siempre visible en todos los estados */}
+  <div className="relative">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+    <input
+      type="text"
+      value={busqueda}
+      onChange={(e) => setBusqueda(e.target.value)}
+      placeholder="Buscar por producto, código u operario..."
+      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  </div>
+
+  {/* Rango de fechas — solo en Completadas */}
+  {filtroEstado === "Completada" && (
+    <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-gray-100">
+      <span className="text-sm font-medium text-gray-500">Fecha completada:</span>
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="date"
+            value={fechaInicio}
+            onChange={(e) => setFechaInicio(e.target.value)}
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          />
+        </div>
+        <span className="text-gray-400 font-medium">—</span>
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="date"
+            value={fechaFin}
+            min={fechaInicio || undefined}
+            onChange={(e) => setFechaFin(e.target.value)}
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          />
+        </div>
+        {(fechaInicio || fechaFin) && (
+          <button
+            onClick={() => { setFechaInicio(""); setFechaFin(""); }}
+            className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+          >
+            <X className="w-4 h-4" />
+            Limpiar
+          </button>
         )}
       </div>
+    </div>
+  )}
+</div>
 
       {/* ── Lista de órdenes ── */}
       <div className="space-y-4">

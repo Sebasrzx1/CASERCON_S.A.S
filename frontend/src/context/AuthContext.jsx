@@ -17,13 +17,12 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, contraseña }),
       });
 
-      const data = await res.json(); // 🔥 SIEMPRE JSON
-      console.log("RESPUESTA BACKEND:", data); // 👈 AGREGA ESTO
+      const data = await res.json(); 
       
       if (!res.ok) {
         return { 
           error: data.message || "Error en login" 
-        }; // 🔥 CLAVE
+        };
       }
 
       localStorage.setItem("token", data.token);
