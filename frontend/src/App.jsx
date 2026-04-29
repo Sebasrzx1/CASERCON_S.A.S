@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Login } from "./pages/Login";
 import { Layout } from "./components/Layout";
 import { Toaster } from "sonner";
-
+import { ForgotPassword } from "./pages/ForgotPassword";
 
 
 // Páginas (créelas después si no existen)
@@ -23,6 +23,7 @@ function App() {
       <Routes>
         {/* Login */}
         <Route path="/" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword/>}/>
 
         {/* Rutas del sistema */}
         <Route element={<Layout />}>

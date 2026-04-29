@@ -32,7 +32,7 @@ const produccionController = {
 
   async createProduccion(req, res, next) {
     try {
-      const userId = req.user.id
+      const userId = req.user.id;
       const produccionNueva = await producccionService.createOrdenProduccion({
         ...req.body,
         id_usuario_creador: userId,
@@ -63,6 +63,20 @@ const produccionController = {
   async finalizarProduccion(req, res, next) {
     try {
       const userId = req.user.id;
+      const rolNombre = req.user.rol_nombre; // viene del middleware protect
+
+      // Verificar que el operario sea el asignado a esta orden
+      const orden = await producccionService.getByIdProduccion(req.params.id);
+      if (
+        rolNombre !== "administrador" &&
+        Number(orden.id_usuario_inicio) !== Number(userId)
+      ) {
+        throw new AppError(
+          "No tienes permiso para finalizar esta orden",
+          httpStatus.FORBIDEN
+        );
+      }
+
       await producccionService.finalizarProduccion(req.params.id, userId);
       res.status(httpStatus.OK).json({
         status: "success",
@@ -87,7 +101,6 @@ const produccionController = {
   },
 
   // Verifica si hay stock disponible para una receta y cantidad dadas
-  // Usado por el frontend para mostrar el preview antes de crear la orden
   // GET /api/produccion/verificar-stock?id_receta=X&cantidad_producir=Y
   async verificarStock(req, res, next) {
     try {
@@ -114,24 +127,24 @@ const produccionController = {
     }
   },
 
-   // Reasigna el operario de una orden en proceso
+  // Reasigna el operario de una orden en proceso
   // PUT /api/produccion/:id/reasignar
   async reasignarProduccion(req, res, next) {
     try {
       const { id_usuario_inicio } = req.body;
- 
+
       if (!id_usuario_inicio) {
         throw new AppError(
           "Falta el campo id_usuario_inicio",
           httpStatus.BAD_REQUEST,
         );
       }
- 
+
       const result = await producccionService.reasignarProduccion(
         req.params.id,
         id_usuario_inicio,
       );
- 
+
       res.status(httpStatus.OK).json({
         status: "success",
         message: result.message,
@@ -140,7 +153,7 @@ const produccionController = {
       next(error);
     }
   },
- 
+
   // Lista los operarios activos para el select del modal de reasignación
   // GET /api/produccion/operarios
   async getOperarios(req, res, next) {
@@ -149,6 +162,27 @@ const produccionController = {
       res.status(httpStatus.OK).json({
         status: "success",
         data: operarios,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Editar cantidad e id_receta de una orden pendiente
+  // PUT /api/produccion/:id/cantidad
+  async editarOrden(req, res, next) {
+    try {
+      const { cantidad_producir, id_receta } = req.body;
+
+      const result = await producccionService.editarOrden(
+        req.params.id,
+        cantidad_producir,
+        id_receta,
+      );
+
+      res.status(httpStatus.OK).json({
+        status: "success",
+        message: result.message,
       });
     } catch (error) {
       next(error);

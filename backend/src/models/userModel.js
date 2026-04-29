@@ -35,6 +35,16 @@ const UserModel = {
     return user;
   },
 
+  //Buscar usuariopor email simple (para recuperacionde contraseña)
+  async findByEmail(email){
+    const query = `
+    SELECT id_usuario, email, estado FROM usuarios WHERE email = ?
+    `
+    const [rows] = await db.execute(query, [email]);
+
+    return rows[0];
+  },
+
   // Crear un usuario nuevo
   async create(user) {
     const { nombre, email, contraseña, id_rol } = user;
@@ -192,6 +202,40 @@ const UserModel = {
   `;
 
     await db.execute(query, [id]);
+  },
+
+ // ══════════════════════════════════════════════════════
+//  MÉTODOS DE RECUPERACIÓN DE CONTRASEÑA
+// ══════════════════════════════════════════════════════
+ 
+  // Guardar código de recuperación con fecha de expiración (15 min)
+  async saveCodigoRecuperacion(id_usuario, codigo) {
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+    await db.execute(
+      "UPDATE usuarios SET codigo_recuperacion = ?, codigo_expiry = ? WHERE id_usuario = ?",
+      [codigo, expiry, id_usuario]
+    );
+  },
+ 
+  // Buscar usuario por código válido (no expirado)
+  async findByCodigoRecuperacion(codigo) {
+    const [rows] = await db.execute(
+      `SELECT id_usuario, email 
+       FROM usuarios 
+       WHERE codigo_recuperacion = ? AND codigo_expiry > NOW()`,
+      [codigo]
+    );
+    return rows[0] || null;
+  },
+ 
+  // Actualizar contraseña y limpiar código tras usarlo
+  async updatePasswordAndClearCodigo(id_usuario, hash) {
+    await db.execute(
+      `UPDATE usuarios 
+       SET contraseña = ?, codigo_recuperacion = NULL, codigo_expiry = NULL 
+       WHERE id_usuario = ?`,
+      [hash, id_usuario]
+    );
   },
 };
 

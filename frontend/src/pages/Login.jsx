@@ -1,5 +1,7 @@
+// src/pages/Login.jsx
+
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Lock, Mail, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logoCarsecon from "../assets/logo.png";
@@ -9,10 +11,10 @@ export function Login() {
   const [contraseña, setContraseña] = useState("");
   const [error, setError] = useState("");
 
-  const { login } = useAuth(); // 🔥 usamos el contexto
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  // 🔐 Verificar sesión activa
+  // Verificar sesión activa
   useEffect(() => {
     const savedUser = localStorage.getItem("casercon_user");
 
@@ -37,14 +39,14 @@ export function Login() {
     e.preventDefault();
     setError("");
 
-    const user = await login(email, contraseña); // 🔥 AQUÍ
+    const user = await login(email, contraseña);
 
     if (user?.error) {
       setError(user.error);
       return;
     }
 
-    // 🔥 Redirección centralizada
+    // Redirección según rol
     if (user.nombre_rol === "Administrador") {
       navigate("/dashboard");
     } else if (user.nombre_rol === "Operario") {
@@ -123,9 +125,22 @@ export function Login() {
               </div>
             )}
 
-            <button className="w-full bg-yellow-400 p-3 rounded-lg font-bold hover:bg-yellow-500 transition">
+            <button
+              type="submit"
+              className="w-full bg-yellow-400 p-3 rounded-lg font-bold hover:bg-yellow-500 transition"
+            >
               Ingresar
             </button>
+
+            {/* ── Link de recuperación ── */}
+            <div className="text-center">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-gray-400 hover:text-yellow-600 transition"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </form>
         </div>
       </div>
