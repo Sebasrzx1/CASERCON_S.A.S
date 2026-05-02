@@ -27,6 +27,7 @@ CREATE TABLE usuarios(
     email VARCHAR(250) UNIQUE NOT NULL,
     contraseña VARCHAR(225) NOT NULL,
     codigo_recuperacion VARCHAR(6),
+    codigo_expiry DATETIME NULL,
     intentos_fallidos INT DEFAULT 0,
     estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
 	FOREIGN KEY (id_rol) REFERENCES roles(id_rol)
@@ -78,6 +79,8 @@ CREATE TABLE pedidos (
     estado ENUM('pendiente', 'recibido', 'cancelado') DEFAULT 'pendiente',
     id_usuario_creador INT NOT NULL, 
     id_usuario_receptor INT,
+    id_pedido_origen INT,
+    FOREIGN KEY (id_pedido_origen) REFERENCES pedidos(id_pedido),
 	FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor),
     FOREIGN  KEY (id_usuario_creador) REFERENCES usuarios(id_usuario),
     FOREIGN KEY (id_usuario_receptor) REFERENCES usuarios(id_usuario)
@@ -156,11 +159,13 @@ CREATE TABLE detalle_receta (
 -- 14. Creacion de la tabla ordenes_produccion
 CREATE TABLE ordenes_produccion (
     id_orden_produccion INT AUTO_INCREMENT PRIMARY KEY,
+    codigo_orden VARCHAR(20) NULL,
     id_receta INT NOT NULL,
     id_usuario_creador INT NOT NULL,
     id_usuario_inicio INT,
     id_usuario_fin INT,
     cantidad_producir DECIMAL(12,2) NOT NULL,
+    observaciones TEXT,
     estado ENUM('Pendiente','En proceso','Completada') DEFAULT 'Pendiente',
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_finalizacion DATETIME,
@@ -168,6 +173,16 @@ CREATE TABLE ordenes_produccion (
 	FOREIGN KEY (id_usuario_creador) REFERENCES usuarios(id_usuario),
 	FOREIGN KEY (id_usuario_inicio) REFERENCES usuarios(id_usuario),
 	FOREIGN KEY (id_usuario_fin) REFERENCES usuarios(id_usuario)
+);
+
+CREATE TABLE detalle_orden_produccion (
+    id_detalle_orden INT AUTO_INCREMENT PRIMARY KEY,
+    id_orden_produccion INT NOT NULL,
+    id_materia INT NOT NULL,
+    cantidad_porcentaje DECIMAL(5,2) NOT NULL,
+    FOREIGN KEY (id_orden_produccion) REFERENCES ordenes_produccion(id_orden_produccion),
+    FOREIGN KEY (id_materia) REFERENCES materias_primas(id_materia),
+    UNIQUE(id_orden_produccion, id_materia)
 );
 
 -- ==================================================================
@@ -420,7 +435,6 @@ SELECT * FROM detalle_receta;
 
 UPDATE usuarios SET contraseña = "$2b$10$ljbvSm496P52FAJTsRXy8u8a/JSjb2m/n9VFZ41quG.L/GL9Pff6u" WHERE id_usuario = 8;
 
-select * from usuarios;
-select * from ordenes_produccion;
-
 select * from proveedores where email = "ventas@quimicos.com";
+
+select * from ordenes_produccion;

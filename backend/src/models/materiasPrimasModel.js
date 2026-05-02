@@ -1,9 +1,8 @@
 const db = require("../config/conexion_db");
 
 const materiasPrimasModel = {
-
   async findAll() {
-  const query = `
+    const query = `
     SELECT
       mp.id_materia,
       mp.abreviacion,
@@ -25,14 +24,40 @@ const materiasPrimasModel = {
           ELSE 0 
         END
       ) AS loteInicialUsado,
+
+      -- Stock comprometido: usa detalle_orden_produccion si existe, si no detalle_receta
       ROUND(COALESCE((
-        SELECT SUM(dr.cantidad_porcentaje / 100 * op.cantidad_producir)
-        FROM   ordenes_produccion op
-        JOIN   detalle_receta dr ON op.id_receta = dr.id_receta
-        WHERE  op.estado IN ('Pendiente', 'En proceso')
-        AND    dr.id_materia = mp.id_materia
-      ), 0), 2)                                              AS stockComprometido,
-      'kg'                                                    AS unidad
+        SELECT SUM(ingrediente_porcentaje / 100 * op.cantidad_producir)
+        FROM ordenes_produccion op
+        JOIN (
+          -- Si la orden tiene ingredientes propios, úsalos
+          SELECT
+            dop.id_orden_produccion,
+            dop.id_materia,
+            dop.cantidad_porcentaje AS ingrediente_porcentaje
+          FROM detalle_orden_produccion dop
+          WHERE dop.id_materia = mp.id_materia
+
+          UNION ALL
+
+          -- Si no tiene ingredientes propios, usa la receta base
+          SELECT
+            op2.id_orden_produccion,
+            dr.id_materia,
+            dr.cantidad_porcentaje AS ingrediente_porcentaje
+          FROM ordenes_produccion op2
+          JOIN detalle_receta dr ON op2.id_receta = dr.id_receta
+          WHERE dr.id_materia = mp.id_materia
+            AND NOT EXISTS (
+              SELECT 1 FROM detalle_orden_produccion dop2
+              WHERE dop2.id_orden_produccion = op2.id_orden_produccion
+            )
+        ) AS ingredientes ON ingredientes.id_orden_produccion = op.id_orden_produccion
+        WHERE op.estado IN ('Pendiente', 'En proceso')
+      ), 0), 2) AS stockComprometido,
+
+      'kg' AS unidad
+
     FROM materias_primas mp
     LEFT JOIN categoria_materias cm
           ON mp.id_categoria_materia = cm.id_categoria_materia
@@ -42,16 +67,14 @@ const materiasPrimasModel = {
             mp.nombre, mp.stock_min, mp.estado,
             cm.id_categoria_materia, cm.nombre_categoria_materia
     ORDER BY mp.nombre ASC;
-    
   `;
-  const [rows] = await db.execute(query);
-  return rows.map(r => ({
-  ...r,
-  stockDisponible: Math.max(0, r.stockActual - r.stockComprometido),
-  loteInicialUsado: Boolean(r.loteInicialUsado)
-  }));
-},
-
+    const [rows] = await db.execute(query);
+    return rows.map((r) => ({
+      ...r,
+      stockDisponible: Math.max(0, r.stockActual - r.stockComprometido),
+      loteInicialUsado: Boolean(r.loteInicialUsado),
+    }));
+  },
 
   // ─── Una sola materia prima por ID ───────────────────────────────────────
   async findById(id) {
@@ -78,8 +101,8 @@ const materiasPrimasModel = {
   },
 
   // ─── Lotes activos de una materia (modal "Ver Lotes") ────────────────────
-async findLotesByMateria(id_materia) {
-  const query = `
+  async findLotesByMateria(id_materia) {
+    const query = `
     SELECT
       l.id_lote,
       l.numero_lote,
@@ -98,76 +121,98 @@ async findLotesByMateria(id_materia) {
     WHERE  l.id_materia = ?
     ORDER  BY l.fecha_ingreso DESC;
   `;
-  const [rows] = await db.execute(query, [id_materia]);
-  return rows;
-},
+    const [rows] = await db.execute(query, [id_materia]);
+    return rows;
+  },
 
-async findLoteInicial(id_materia) {
-  const query = `
+  async findLoteInicial(id_materia) {
+    const query = `
     SELECT id_lote, stock_inicial, stock_restante
     FROM lotes
     WHERE id_materia = ? AND numero_lote = 1
     LIMIT 1
   `;
-  const [rows] = await db.execute(query, [id_materia]);
-  return rows[0] || null;
-},
+    const [rows] = await db.execute(query, [id_materia]);
+    return rows[0] || null;
+  },
 
-async updateStockLote(id_lote, nuevoStock) {
-  const query = `
+  async updateStockLote(id_lote, nuevoStock) {
+    const query = `
     UPDATE lotes
     SET stock_inicial = ?, stock_restante = ?
     WHERE id_lote = ?
   `;
-  const [result] = await db.execute(query, [nuevoStock, nuevoStock, id_lote]);
-  return result.affectedRows;
-},
+    const [result] = await db.execute(query, [nuevoStock, nuevoStock, id_lote]);
+    return result.affectedRows;
+  },
 
   // ─── Crear materia prima ──────────────────────────────────────────────────
-  async create({ nombre, codigo, abreviacion, id_categoria_materia, stock_min }) {
+  async create({
+    nombre,
+    codigo,
+    abreviacion,
+    id_categoria_materia,
+    stock_min,
+  }) {
     const query = `
       INSERT INTO materias_primas (nombre, codigo, abreviacion, id_categoria_materia, stock_min)
       VALUES (?, ?, ?, ?, ?);
     `;
     const [result] = await db.execute(query, [
-      nombre, codigo, abreviacion, id_categoria_materia, stock_min ?? 0,
+      nombre,
+      codigo,
+      abreviacion,
+      id_categoria_materia,
+      stock_min ?? 0,
     ]);
     return result.insertId;
   },
 
   // ─── Crear lote inicial al registrar una materia prima ────────────────────
-async createLote({ id_materia, abreviacion, stock_inicial }) {
-  const numero_lote = 1;
-  const fecha = new Date();
-  const dd    = String(fecha.getDate()).padStart(2, "0");
-  const mm    = String(fecha.getMonth() + 1).padStart(2, "0");
-  const yyyy  = fecha.getFullYear();
-  const codigo_lote = `${abreviacion}-${String(numero_lote).padStart(3, "0")}-${dd}${mm}${yyyy}`;
+  async createLote({ id_materia, abreviacion, stock_inicial }) {
+    const numero_lote = 1;
+    const fecha = new Date();
+    const dd = String(fecha.getDate()).padStart(2, "0");
+    const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+    const yyyy = fecha.getFullYear();
+    const codigo_lote = `${abreviacion}-${String(numero_lote).padStart(3, "0")}-${dd}${mm}${yyyy}`;
 
-  const query = `
+    const query = `
     INSERT INTO lotes
       (id_materia, numero_lote, id_detalle_pedido, codigo_lote, stock_inicial, stock_restante, estado)
     VALUES (?, ?, NULL, ?, ?, ?, 'activo');
   `;
-  const [result] = await db.execute(query, [
-    id_materia, numero_lote, codigo_lote, stock_inicial, stock_inicial,
-  ]);
-  return result.insertId;
-},
+    const [result] = await db.execute(query, [
+      id_materia,
+      numero_lote,
+      codigo_lote,
+      stock_inicial,
+      stock_inicial,
+    ]);
+    return result.insertId;
+  },
 
-// ─── Registrar movimiento de entrada inicial ──────────────────────────────
-async createMovimientoEntrada({ id_materia, id_lote, id_usuario, cantidad }) {
-  const query = `
+  // ─── Registrar movimiento de entrada inicial ──────────────────────────────
+  async createMovimientoEntrada({ id_materia, id_lote, id_usuario, cantidad }) {
+    const query = `
     INSERT INTO movimientos_inventario
       (id_materia, id_lote, id_usuario, tipo_movimiento, cantidad, observacion)
     VALUES (?, ?, ?, 'Entrada', ?, 'Stock inicial al registrar materia prima');
   `;
-  const [result] = await db.execute(query, [id_materia, id_lote, id_usuario, cantidad]);
-  return result.insertId;
-},
+    const [result] = await db.execute(query, [
+      id_materia,
+      id_lote,
+      id_usuario,
+      cantidad,
+    ]);
+    return result.insertId;
+  },
 
   // ─── Actualizar metadatos (el stock solo cambia por movimientos/lotes) ───
-  async update(id, { nombre, codigo, abreviacion, id_categoria_materia, stock_min }) {
+  async update(
+    id,
+    { nombre, codigo, abreviacion, id_categoria_materia, stock_min },
+  ) {
     const query = `
       UPDATE materias_primas
       SET    nombre               = ?,
@@ -178,28 +223,32 @@ async createMovimientoEntrada({ id_materia, id_lote, id_usuario, cantidad }) {
       WHERE  id_materia = ?;
     `;
     const [result] = await db.execute(query, [
-      nombre, codigo, abreviacion, id_categoria_materia, stock_min, id,
+      nombre,
+      codigo,
+      abreviacion,
+      id_categoria_materia,
+      stock_min,
+      id,
     ]);
     return result.affectedRows;
   },
 
   async inhabilitar(id) {
-  const query = `
+    const query = `
     UPDATE materias_primas SET estado = 'Inhabilitado' WHERE id_materia = ?;
   `;
-  const [result] = await db.execute(query, [id]);
-  return result.affectedRows;
-},
+    const [result] = await db.execute(query, [id]);
+    return result.affectedRows;
+  },
 
-// Rehabilitar
-async habilitar(id) {
-  const query = `
+  // Rehabilitar
+  async habilitar(id) {
+    const query = `
     UPDATE materias_primas SET estado = 'Activo' WHERE id_materia = ?;
   `;
-  const [result] = await db.execute(query, [id]);
-  return result.affectedRows;
-},
-
+    const [result] = await db.execute(query, [id]);
+    return result.affectedRows;
+  },
 };
 
 module.exports = materiasPrimasModel;

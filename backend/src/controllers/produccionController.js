@@ -73,7 +73,7 @@ const produccionController = {
       ) {
         throw new AppError(
           "No tienes permiso para finalizar esta orden",
-          httpStatus.FORBIDEN
+          httpStatus.FORBIDEN,
         );
       }
 
@@ -104,7 +104,7 @@ const produccionController = {
   // GET /api/produccion/verificar-stock?id_receta=X&cantidad_producir=Y
   async verificarStock(req, res, next) {
     try {
-      const { id_receta, cantidad_producir } = req.query;
+      const { id_receta, cantidad_producir, id_orden } = req.query;
 
       if (!id_receta || !cantidad_producir) {
         throw new AppError(
@@ -115,6 +115,31 @@ const produccionController = {
 
       const resultado = await producccionService.verificarStockParaOrden(
         id_receta,
+        cantidad_producir,
+        id_orden || null, // 👈 pasa el id_orden si viene
+      );
+
+      res.status(httpStatus.OK).json({
+        status: "success",
+        data: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async verificarStockEdicion(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { ingredientes, cantidad_producir } = req.body;
+
+      if (!ingredientes || !cantidad_producir) {
+        throw new AppError("Faltan parámetros", httpStatus.BAD_REQUEST);
+      }
+
+      const resultado = await producccionService.verificarStockParaEdicion(
+        id,
+        ingredientes,
         cantidad_producir,
       );
 
@@ -178,6 +203,49 @@ const produccionController = {
         req.params.id,
         cantidad_producir,
         id_receta,
+      );
+
+      res.status(httpStatus.OK).json({
+        status: "success",
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async editarRecetaOrden(req, res, next) {
+    try {
+      console.log("BODY recibido:", JSON.stringify(req.body, null, 2)); // 👈 agrega esto
+      console.log("USER:", req.user); // 👈 y esto
+      const { ingredientes, motivo } = req.body;
+      const userId = req.user.id;
+      const rolNombre = req.user.rol_nombre;
+
+      if (
+        !ingredientes ||
+        !Array.isArray(ingredientes) ||
+        ingredientes.length === 0
+      ) {
+        throw new AppError(
+          "Los ingredientes son obligatorios",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (!motivo || !motivo.trim()) {
+        throw new AppError(
+          "El motivo de modificación es obligatorio",
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await producccionService.editarRecetaOrden(
+        req.params.id,
+        ingredientes,
+        motivo,
+        userId,
+        rolNombre,
       );
 
       res.status(httpStatus.OK).json({

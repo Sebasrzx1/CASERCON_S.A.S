@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
 
 export default function ProduccionPage() {
   const { isAdministrador, user } = useAuth();
@@ -27,28 +28,32 @@ export default function ProduccionPage() {
   const [loading, setLoading] = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState("Pendiente");
+  const [modalConfirmarInicio, setModalConfirmarInicio] = useState(false);
+  const [ordenParaIniciar, setOrdenParaIniciar] = useState(null);
+  const [modalConfirmarFinalizar, setModalConfirmarFinalizar] = useState(false);
+  const [ordenParaFinalizar, setOrdenParaFinalizar] = useState(null);
 
   // Stock preview al crear orden
   const [stockPreview, setStockPreview] = useState(null);
   const [loadingStock, setLoadingStock] = useState(false);
+  const [erroresFormulario, setErroresFormulario] = useState({});
 
   const [formulario, setFormulario] = useState({
     id_receta: "",
     cantidad_producir: "",
   });
 
-  // ── Filtros de fecha (Pendiente y Completada) ───────────────────
+  // ── Filtros de fecha ───────────────────────────────────────────
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
 
-  // Limpia fechas al cambiar de tab para no arrastrar filtros viejos
   const cambiarFiltroEstado = (valor) => {
     setFiltroEstado(valor);
     setFechaInicio("");
     setFechaFin("");
   };
 
-  // ── Modal editar cantidad (solo admin, orden pendiente) ─────────────────────
+  // ── Modal editar cantidad ───────────────────────────────────────
   const [modalEditarCantidad, setModalEditarCantidad] = useState(false);
   const [ordenEditando, setOrdenEditando] = useState(null);
   const [nuevaCantidad, setNuevaCantidad] = useState("");
@@ -56,21 +61,22 @@ export default function ProduccionPage() {
   const [stockPreviewEditar, setStockPreviewEditar] = useState(null);
   const [loadingStockEditar, setLoadingStockEditar] = useState(false);
 
-  // ── Modal editar receta (admin y operario, orden en proceso) ────────────────
+  // ── Modal editar receta ─────────────────────────────────────────
   const [modalEditarReceta, setModalEditarReceta] = useState(false);
   const [ordenEditandoReceta, setOrdenEditandoReceta] = useState(null);
   const [ingredientesEditados, setIngredientesEditados] = useState([]);
   const [motivoModificacion, setMotivoModificacion] = useState("");
   const [guardandoReceta, setGuardandoReceta] = useState(false);
+  const [stockEdicion, setStockEdicion] = useState({});
 
-  // ── Modal reasignar operario (solo admin, orden en proceso) ─────────────────
+  // ── Modal reasignar operario ────────────────────────────────────
   const [modalReasignar, setModalReasignar] = useState(false);
   const [ordenReasignando, setOrdenReasignando] = useState(null);
   const [nuevoOperarioId, setNuevoOperarioId] = useState("");
 
   const token = localStorage.getItem("token");
 
-  // ── Fetch producciones ──────────────────────────────────────────
+  // ── Fetches ─────────────────────────────────────────────────────
   const fetchProducciones = async () => {
     try {
       setLoading(true);
@@ -87,7 +93,6 @@ export default function ProduccionPage() {
     }
   };
 
-  // ── Fetch recetas ───────────────────────────────────────────────
   const fetchRecetas = async () => {
     try {
       const res = await fetch("http://localhost:3000/api/recetas", {
@@ -100,7 +105,6 @@ export default function ProduccionPage() {
     }
   };
 
-  // ── Fetch materias primas (para el modal editar receta) ─────────
   const fetchMateriasPrimas = async () => {
     try {
       const res = await fetch("http://localhost:3000/api/materias-primas", {
@@ -113,12 +117,14 @@ export default function ProduccionPage() {
     }
   };
 
-  // ── Fetch operarios — usa la ruta interna de producción ─────────
   const fetchOperarios = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/produccion/operarios", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        "http://localhost:3000/api/produccion/operarios",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const data = await res.json();
       setOperarios(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
@@ -174,7 +180,12 @@ export default function ProduccionPage() {
 
   // Verificar stock al editar cantidad — debounce 400ms
   useEffect(() => {
-    if (!ordenEditando || !nuevaCantidad || Number(nuevaCantidad) <= 0 || !nuevaRecetaId) {
+    if (
+      !ordenEditando ||
+      !nuevaCantidad ||
+      Number(nuevaCantidad) <= 0 ||
+      !nuevaRecetaId
+    ) {
       setStockPreviewEditar(null);
       return;
     }
@@ -182,7 +193,8 @@ export default function ProduccionPage() {
     const timeout = setTimeout(async () => {
       try {
         const res = await fetch(
-          `http://localhost:3000/api/produccion/verificar-stock?id_receta=${nuevaRecetaId}&cantidad_producir=${nuevaCantidad}`,
+          // 👇 agrega id_orden al query string
+          `http://localhost:3000/api/produccion/verificar-stock?id_receta=${nuevaRecetaId}&cantidad_producir=${nuevaCantidad}&id_orden=${ordenEditando.id_orden_produccion}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         const data = await res.json();
@@ -198,10 +210,17 @@ export default function ProduccionPage() {
 
   // ── Crear orden ─────────────────────────────────────────────────
   const crearProduccion = async () => {
-    if (!formulario.id_receta || !formulario.cantidad_producir) {
-      alert("Todos los campos son obligatorios");
+    const errores = {};
+    if (!formulario.id_receta) errores.id_receta = "Seleccione una receta";
+    if (!formulario.cantidad_producir)
+      errores.cantidad_producir = "Ingrese una cantidad";
+
+    if (Object.keys(errores).length > 0) {
+      setErroresFormulario(errores);
       return;
     }
+
+    setErroresFormulario({});
     try {
       const res = await fetch("http://localhost:3000/api/produccion", {
         method: "POST",
@@ -216,49 +235,90 @@ export default function ProduccionPage() {
       });
       const data = await res.json();
       if (data.status === "error") {
-        alert(data.message);
+        toast.error(data.message);
         return;
       }
       cerrarModal();
       fetchProducciones();
+      toast.success("¡Orden de producción creada exitosamente!");
     } catch (error) {
       console.error(error);
     }
   };
+
+  useEffect(() => {
+    if (!ordenEditandoReceta || ingredientesEditados.length === 0) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3000/api/produccion/${ordenEditandoReceta.id_orden_produccion}/verificar-stock-edicion`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ingredientes: ingredientesEditados.filter((i) => i.id_materia),
+              cantidad_producir: ordenEditandoReceta.cantidad_producir,
+            }),
+          },
+        );
+        const data = await res.json();
+        if (data.status === "success") {
+          // Convertir a mapa por id_materia para acceso rápido
+          const mapa = {};
+          data.data.ingredientes.forEach((i) => {
+            mapa[String(i.id_materia)] = i;
+          });
+          setStockEdicion(mapa);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [ingredientesEditados, ordenEditandoReceta]);
 
   // ── Iniciar producción ──────────────────────────────────────────
-  const iniciarProduccion = async (id) => {
-    if (!window.confirm("¿Desea iniciar esta orden de producción?")) return;
+  const iniciarProduccion = async () => {
     try {
-      await fetch(`http://localhost:3000/api/produccion/${id}/iniciar`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await fetch(
+        `http://localhost:3000/api/produccion/${ordenParaIniciar.id_orden_produccion}/iniciar`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      setModalConfirmarInicio(false);
+      setOrdenParaIniciar(null);
       fetchProducciones();
+      toast.success("¡Orden iniciada correctamente!");
     } catch (error) {
       console.error(error);
     }
   };
-
   // ── Finalizar producción ────────────────────────────────────────
-  const finalizarProduccion = async (id) => {
-    if (
-      !window.confirm(
-        "¿Confirma que la producción fue completada? Esto actualizará el inventario.",
-      )
-    )
-      return;
+  const finalizarProduccion = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/api/produccion/${id}/finalizar`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `http://localhost:3000/api/produccion/${ordenParaFinalizar.id_orden_produccion}/finalizar`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const data = await res.json();
       if (data.status === "error") {
-        alert(data.message);
+        toast.error(data.message);
         return;
       }
+      setModalConfirmarFinalizar(false);
+      setOrdenParaFinalizar(null);
       fetchProducciones();
+      toast.success("¡Producción completada!");
     } catch (error) {
       console.error(error);
     }
@@ -278,6 +338,7 @@ export default function ProduccionPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchProducciones();
+      toast.success("Orden eliminada correctamente");
     } catch (error) {
       console.error(error);
     }
@@ -289,9 +350,10 @@ export default function ProduccionPage() {
     setFormulario({ id_receta: "", cantidad_producir: "" });
     setRecetaDetalle(null);
     setStockPreview(null);
+    setErroresFormulario({});
   };
 
-  // ── Editar cantidad (modal) ─────────────────────────────────────
+  // ── Editar cantidad ─────────────────────────────────────────────
   const abrirModalEditarCantidad = (produccion) => {
     setOrdenEditando(produccion);
     setNuevaCantidad(String(produccion.cantidad_producir));
@@ -310,7 +372,7 @@ export default function ProduccionPage() {
 
   const guardarCantidad = async () => {
     if (!nuevaCantidad || Number(nuevaCantidad) <= 0) {
-      alert("Ingrese una cantidad válida");
+      toast.error("Ingrese una cantidad válida");
       return;
     }
     try {
@@ -330,11 +392,12 @@ export default function ProduccionPage() {
       );
       const data = await res.json();
       if (data.status === "error") {
-        alert(data.message);
+        toast.error(data.message);
         return;
       }
       cerrarModalEditarCantidad();
       fetchProducciones();
+      toast.success("¡Orden actualizada correctamente!");
     } catch (error) {
       console.error(error);
     }
@@ -342,11 +405,19 @@ export default function ProduccionPage() {
 
   // ── Editar receta de la orden en proceso ────────────────────────
   const abrirModalEditarReceta = (produccion) => {
-    const receta = recetas.find((r) => r.id_receta === produccion.id_receta);
-    if (!receta) return;
+    // Si la orden tiene ingredientes propios editados, úsalos; si no, usa la receta base
+    const ingredientesIniciales = produccion.ingredientes_orden
+      ? typeof produccion.ingredientes_orden === "string"
+        ? JSON.parse(produccion.ingredientes_orden)
+        : produccion.ingredientes_orden
+      : (recetas.find((r) => r.id_receta === produccion.id_receta)
+          ?.ingredientes ?? []);
+
+    if (ingredientesIniciales.length === 0) return;
+
     setOrdenEditandoReceta(produccion);
     setIngredientesEditados(
-      receta.ingredientes.map((ing) => ({
+      ingredientesIniciales.map((ing) => ({
         id_materia: ing.id_materia,
         nombre_materia: ing.nombre_materia,
         cantidad_porcentaje: parseFloat(ing.cantidad_porcentaje),
@@ -361,6 +432,7 @@ export default function ProduccionPage() {
     setOrdenEditandoReceta(null);
     setIngredientesEditados([]);
     setMotivoModificacion("");
+    setStockEdicion({});
   };
 
   const agregarIngrediente = () => {
@@ -383,7 +455,8 @@ export default function ProduccionPage() {
       copia[idx].id_materia = valor;
       copia[idx].nombre_materia = materia?.nombre || "";
     } else {
-      copia[idx].cantidad_porcentaje = parseFloat(valor) || 0;
+      const num = parseFloat(valor) || 0;
+      copia[idx].cantidad_porcentaje = num < 0 ? 0 : num; // 👈 no permite negativos
     }
     setIngredientesEditados(copia);
   };
@@ -394,20 +467,51 @@ export default function ProduccionPage() {
   );
 
   const guardarRecetaEditada = async () => {
-    if (ingredientesEditados.some((ing) => !ing.id_materia)) {
-      alert("Todos los ingredientes deben tener una materia prima seleccionada");
+    if (ingredientesEditados.some((ing) => ing.cantidad_porcentaje <= 0)) {
+      toast.error("Los porcentajes deben ser mayores a 0%");
       return;
     }
+
+    if (ingredientesEditados.some((ing) => !ing.id_materia)) {
+      toast.error(
+        "Todos los ingredientes deben tener una materia prima seleccionada",
+      );
+      return;
+    }
+
     if (Math.abs(sumaTotal - 100) > 0.01) {
-      alert(
+      toast.error(
         `La suma de porcentajes debe ser 100%. Suma actual: ${sumaTotal.toFixed(2)}%`,
       );
       return;
     }
+
     if (!motivoModificacion.trim()) {
-      alert("Debe especificar el motivo de la modificación");
+      toast.error("Debe especificar el motivo de la modificación");
       return;
     }
+
+    // ── Validar stock disponible para cada ingrediente ──────────────
+    const faltantesStock = ingredientesEditados.filter((ing) => {
+      if (!ing.id_materia) return false;
+      const info = stockEdicion[String(ing.id_materia)];
+      return info && !info.suficiente;
+    });
+
+    if (faltantesStock.length > 0) {
+      toast.error(
+        `Stock insuficiente para: ${faltantesStock
+          .map((ing) => {
+            const info = stockEdicion[String(ing.id_materia)];
+            return `${ing.nombre_materia} (necesita ${info.cantidad_necesaria.toFixed(2)} kg, disponible ${info.stock_disponible.toFixed(2)} kg)`;
+          })
+          .join(" | ")}`,
+        { duration: 6000 },
+      );
+      return;
+    }
+    // ───────────────────────────────────────────────────────────────
+
     setGuardandoReceta(true);
     try {
       const res = await fetch(
@@ -426,12 +530,13 @@ export default function ProduccionPage() {
       );
       const data = await res.json();
       if (data.status === "error") {
-        alert(data.message);
+        toast.error("Datos duplicados");
         return;
       }
       cerrarModalEditarReceta();
       fetchProducciones();
       fetchRecetas();
+      toast.success("¡Receta de la orden actualizada!");
     } catch (error) {
       console.error(error);
     } finally {
@@ -454,7 +559,7 @@ export default function ProduccionPage() {
 
   const guardarReasignacion = async () => {
     if (!nuevoOperarioId) {
-      alert("Seleccione un operario");
+      toast.error("Seleccione un operario");
       return;
     }
     try {
@@ -471,100 +576,279 @@ export default function ProduccionPage() {
       );
       const data = await res.json();
       if (data.status === "error") {
-        alert(data.message);
+        toast.error(data.message);
         return;
       }
       cerrarModalReasignar();
       fetchProducciones();
+      toast.success("Operario reasignado correctamente");
     } catch (error) {
       console.error(error);
     }
   };
 
-  // ── Imprimir orden ──────────────────────────────────────────────
+  // ── Imprimir orden (mejorado con badge de receta modificada) ────
   const imprimirOrden = (produccion) => {
+    const ingredientesOrden = produccion.ingredientes_orden
+      ? typeof produccion.ingredientes_orden === "string"
+        ? JSON.parse(produccion.ingredientes_orden)
+        : produccion.ingredientes_orden
+      : null;
+
     const receta = recetas.find((r) => r.id_receta === produccion.id_receta);
     if (!receta) return;
 
-    const ingredientes = receta.ingredientes || [];
-    const filas = ingredientes
-      .map((ing) => {
-        const cantNecesaria =
-          (parseFloat(ing.cantidad_porcentaje) / 100) *
-          parseFloat(produccion.cantidad_producir);
-        return `
-          <tr>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${ing.nombre_materia}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${parseFloat(ing.cantidad_porcentaje).toFixed(2)}%</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${cantNecesaria.toFixed(2)} KG</td>
-          </tr>`;
-      })
-      .join("");
+    const ingredientes = ingredientesOrden || receta.ingredientes || [];
+    const recetaFueModificada = !!ingredientesOrden;
+
+    const idsBase = receta.ingredientes?.map((i) => i.id_materia) ?? [];
 
     const operarioNombre =
       operarios.find(
-        (o) => o.id_usuario === produccion.id_usuario_inicio,
-      )?.nombre || "Sin asignar";
+        (o) => String(o.id_usuario) === String(produccion.id_usuario_inicio),
+      )?.nombre ||
+      produccion.usuario_inicio || // 👈 fallback: ya viene en el objeto de la orden
+      "Sin asignar";
+
+    const filas = ingredientes
+      .map((ing, index) => {
+        const cantNecesaria =
+          (parseFloat(ing.cantidad_porcentaje) / 100) *
+          parseFloat(produccion.cantidad_producir);
+
+        const esNuevo =
+          recetaFueModificada && !idsBase.includes(ing.id_materia);
+        const esEditado =
+          recetaFueModificada &&
+          !esNuevo &&
+          (() => {
+            const original = receta.ingredientes?.find(
+              (i) => i.id_materia === ing.id_materia,
+            );
+            return (
+              original &&
+              parseFloat(original.cantidad_porcentaje) !==
+                parseFloat(ing.cantidad_porcentaje)
+            );
+          })();
+
+        // 👇 Buscar stock disponible real desde materiasPrimas
+        const materiaReal = materiasPrimas.find(
+          (m) => String(m.id_materia) === String(ing.id_materia),
+        );
+        const stockDisp = materiaReal
+          ? Number(materiaReal.stockDisponible ?? 0).toFixed(2)
+          : "—";
+
+        const claseRow = esNuevo
+          ? "background-color:#d1fae5;font-weight:bold;"
+          : esEditado
+            ? "background-color:#fef3c7;font-weight:bold;"
+            : "";
+
+        const badge = esNuevo
+          ? '<span style="background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:5px;">NUEVO</span>'
+          : esEditado
+            ? '<span style="background:#f59e0b;color:white;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:5px;">MODIFICADO</span>'
+            : "";
+
+        return `
+      <tr style="${claseRow}">
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${index + 1}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${ing.nombre_materia}${badge}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:center;">${parseFloat(ing.cantidad_porcentaje).toFixed(2)}%</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:center;">${cantNecesaria.toFixed(2)} KG</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:center;">${stockDisp} KG</td>
+      </tr>`;
+      })
+      .join("");
+
+    const eliminados = recetaFueModificada
+      ? (receta.ingredientes?.filter(
+          (i) =>
+            !ingredientes.some(
+              (o) => String(o.id_materia) === String(i.id_materia),
+            ),
+        ) ?? [])
+      : [];
+
+    const agregados = recetaFueModificada
+      ? ingredientes.filter((i) => !idsBase.includes(i.id_materia))
+      : [];
+
+    const eliminadosHtml =
+      eliminados.length > 0
+        ? `<p style="color:#dc2626;margin-top:6px;font-size:13px;">
+      <strong>Ingredientes Eliminados:</strong> 
+      ${eliminados.map((e) => `<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:12px;margin-right:4px;">${e.nombre_materia}</span>`).join("")}
+     </p>`
+        : "";
+
+    const agregadosHtml =
+      agregados.length > 0
+        ? `<p style="color:#16a34a;margin-top:6px;font-size:13px;">
+      <strong>Ingredientes Agregados:</strong> 
+      ${agregados.map((a) => `<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px;margin-right:4px;">${a.nombre_materia}</span>`).join("")}
+     </p>`
+        : "";
+
+    const seccionModificacion = recetaFueModificada
+      ? `<div style="padding:15px;background:#fef3c7;border:2px solid #f59e0b;border-radius:5px;margin-bottom:20px;">
+      <h4 style="color:#92400e;margin:0 0 8px 0;font-size:14px;">⚠️ RECETA MODIFICADA</h4>
+      <p style="color:#78350f;font-size:13px;margin:0 0 4px 0;">
+        <strong>Motivo:</strong> ${produccion.observaciones || "No especificado"}
+      </p>
+      <p style="color:#78350f;font-size:13px;margin:0;">
+        <strong>Receta Original:</strong> ${receta.nombre_producto}
+      </p>
+      ${eliminadosHtml}
+      ${agregadosHtml}
+    </div>`
+      : "";
+
+    const seccionObservaciones =
+      produccion.observaciones && !recetaFueModificada
+        ? `
+    <div style="padding:15px;background:#fff8dc;border:1px solid #fdd835;border-radius:5px;margin-bottom:20px;">
+      <h4 style="color:#2d3748;margin:0 0 8px 0;font-size:14px;">Observaciones:</h4>
+      <p style="color:#4a5568;font-size:13px;line-height:1.5;margin:0;">${produccion.observaciones}</p>
+    </div>`
+        : "";
+
+    const fechaFormateada = new Date(
+      produccion.fecha_creacion,
+    ).toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const ahora = new Date().toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Orden de Producción</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #111827; }
-            h1 { font-size: 22px; margin-bottom: 4px; }
-            h2 { font-size: 16px; font-weight: normal; color: #6b7280; margin-bottom: 24px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
-            .campo { background: #f9fafb; border-radius: 6px; padding: 10px 14px; }
-            .campo label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 2px; }
-            .campo span { font-size: 14px; font-weight: 600; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-            thead tr { background: #1e40af; color: white; }
-            thead th { padding: 10px 12px; text-align: left; font-size: 13px; }
-            tbody tr:nth-child(even) { background: #f3f4f6; }
-            .total-row { background: #dbeafe !important; font-weight: bold; }
-            .firma { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
-            .firma div { border-top: 1px solid #9ca3af; padding-top: 8px; text-align: center; font-size: 13px; color: #6b7280; }
-            @media print { button { display: none; } }
-          </style>
-        </head>
-        <body>
-          <button onclick="window.print()" style="margin-bottom:20px;padding:8px 20px;background:#1e40af;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;">
-            🖨️ Imprimir
-          </button>
-          <h1>CASERCON S.A.S — Orden de Producción</h1>
-          <h2>Estado: En Proceso</h2>
-          <div class="grid">
-            <div class="campo"><label>Producto</label><span>${receta.nombre_producto}</span></div>
-            <div class="campo"><label>Cantidad a producir</label><span>${parseFloat(produccion.cantidad_producir).toFixed(2)} KG</span></div>
-            <div class="campo"><label>Fecha creación</label><span>${new Date(produccion.fecha_creacion).toLocaleDateString("es-CO")}</span></div>
-            <div class="campo"><label>Operario asignado</label><span>${operarioNombre}</span></div>
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Orden de Producción - ${produccion.codigo_orden || produccion.id_orden_produccion}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #2d3748; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #FDD835; padding-bottom: 20px; }
+          .header h1 { color: #2d3748; font-size: 28px; margin-bottom: 10px; }
+          .header h2 { color: #888; font-size: 18px; font-weight: normal; }
+          .info-section { margin-bottom: 25px; }
+          .info-section h3 { background-color: #FDD835; color: #2d3748; padding: 10px; margin-bottom: 15px; font-size: 15px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+          .info-item { padding: 8px; background-color: #f7fafc; border-left: 3px solid #FDD835; }
+          .info-item label { font-weight: bold; color: #4a5568; display: block; margin-bottom: 3px; font-size: 11px; text-transform: uppercase; }
+          .info-item span { color: #2d3748; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          thead tr { background-color: #2d3748; color: white; }
+          thead th { padding: 12px; text-align: left; font-size: 13px; }
+          tbody tr:nth-child(even) { background-color: #f7fafc; }
+          .total-row { background-color: #FDD835 !important; font-weight: bold; }
+          .firma-section { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+          .firma-box { text-align: center; }
+          .firma-line { border-top: 2px solid #2d3748; margin-bottom: 8px; margin-top: 60px; }
+          .firma-box label { font-weight: bold; color: #4a5568; font-size: 13px; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0; color: #718096; font-size: 12px; }
+          .print-button { position: fixed; top: 20px; right: 20px; padding: 12px 24px; background-color: #FDD835; color: #2d3748; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .print-button:hover { background-color: #fbc02d; }
+          @media print { .print-button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <button class="print-button" onclick="window.print()">🖨️ Imprimir</button>
+
+        <div class="header">
+          <h1>CASERCON S.A.S</h1>
+          <h2>Orden de Producción</h2>
+        </div>
+
+        ${seccionModificacion}
+
+        <div class="info-section">
+          <h3>Información General</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <label>Código de Orden</label>
+              <span>${produccion.codigo_orden || `OP-${produccion.id_orden_produccion}`}</span>
+            </div>
+            <div class="info-item">
+              <label>Estado</label>
+              <span>EN PROCESO</span>
+            </div>
+            <div class="info-item">
+              <label>Receta</label>
+              <span>${receta.nombre_producto}</span>
+            </div>
+            <div class="info-item">
+              <label>Peso Total a Producir</label>
+              <span>${parseFloat(produccion.cantidad_producir).toFixed(2)} KG</span>
+            </div>
+            <div class="info-item">
+              <label>Fecha de Creación</label>
+              <span>${fechaFormateada}</span>
+            </div>
+            <div class="info-item">
+              <label>Operario Asignado</label>
+              <span>${operarioNombre}</span>
+            </div>
           </div>
+        </div>
+
+        <div class="info-section">
+          <h3>Ingredientes y Cantidades Necesarias</h3>
           <table>
             <thead>
               <tr>
+                <th>#</th>
                 <th>Materia Prima</th>
-                <th style="text-align:center">% Receta</th>
-                <th style="text-align:center">Cantidad Necesaria</th>
+                <th style="text-align:center">Porcentaje</th>
+                <th style="text-align:center">Cantidad Necesaria (KG)</th>
+                <th style="text-align:center">Stock Disponible (KG)</th>
               </tr>
             </thead>
             <tbody>
               ${filas}
               <tr class="total-row">
-                <td style="padding:8px 12px;">TOTAL</td>
-                <td style="padding:8px 12px;text-align:center;">100%</td>
-                <td style="padding:8px 12px;text-align:center;">${parseFloat(produccion.cantidad_producir).toFixed(2)} KG</td>
+                <td style="padding:10px 12px;" colspan="2"><strong>TOTAL</strong></td>
+                <td style="padding:10px 12px;text-align:center;"><strong>100.00%</strong></td>
+                <td style="padding:10px 12px;text-align:center;"><strong>${parseFloat(produccion.cantidad_producir).toFixed(2)} KG</strong></td>
+                <td style="padding:10px 12px;"></td>
               </tr>
             </tbody>
           </table>
-          <div class="firma">
-            <div>Firma Operario</div>
-            <div>Firma Supervisor</div>
+        </div>
+
+        ${seccionObservaciones}
+
+        <div class="firma-section">
+          <div class="firma-box">
+            <div class="firma-line"></div>
+            <label>Operario de Producción</label>
           </div>
-        </body>
-      </html>`;
+          <div class="firma-box">
+            <div class="firma-line"></div>
+            <label>Supervisor / Gerente</label>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>CASERCON S.A.S - Fabricante de Pinturas</p>
+          <p>Impreso el ${ahora}</p>
+        </div>
+      </body>
+    </html>`;
 
     const ventana = window.open("", "_blank");
     if (!ventana) return;
@@ -573,29 +857,23 @@ export default function ProduccionPage() {
   };
 
   // ── Estadísticas ────────────────────────────────────────────────
-  // Pendientes: conteo global para todos
-  // En proceso y Completadas: solo las propias si es operario
   const estadisticas = useMemo(() => {
     const esSoloOperario = !isAdministrador;
     const miId = Number(user?.id_usuario);
 
     const pendientes = producciones.filter(
-      (p) => p.estado === "Pendiente"
+      (p) => p.estado === "Pendiente",
     ).length;
-
     const enProceso = producciones.filter(
       (p) =>
         p.estado === "En proceso" &&
-        (!esSoloOperario || Number(p.id_usuario_inicio) === miId)
+        (!esSoloOperario || Number(p.id_usuario_inicio) === miId),
     ).length;
-
     const completadas = producciones.filter(
       (p) =>
         p.estado === "Completada" &&
-        (!esSoloOperario || Number(p.id_usuario_fin) === miId)
+        (!esSoloOperario || Number(p.id_usuario_fin) === miId),
     ).length;
-
-    // Total: para admin es todo el sistema; para operario es lo que puede ver
     const total = esSoloOperario
       ? pendientes + enProceso + completadas
       : producciones.length;
@@ -604,36 +882,28 @@ export default function ProduccionPage() {
   }, [producciones, isAdministrador, user]);
 
   // ── Filtrado ────────────────────────────────────────────────────
-  // Operario: en "En proceso" solo ve sus órdenes propias
-  //           en "Completada" solo ve las que él completó
-  //           en "Pendiente" ve todas (son globales)
   const produccionesFiltradas = useMemo(() => {
     const esSoloOperario = !isAdministrador;
     const miId = Number(user?.id_usuario);
 
     let resultado = producciones.filter((p) => {
       if (p.estado !== filtroEstado) return false;
-
-      // Operario viendo tab "En proceso": solo sus órdenes
-      if (esSoloOperario && p.estado === "En proceso") {
+      if (esSoloOperario && p.estado === "En proceso")
         return Number(p.id_usuario_inicio) === miId;
-      }
-
-      // Operario viendo tab "Completada": solo las que él completó
-      if (esSoloOperario && p.estado === "Completada") {
+      if (esSoloOperario && p.estado === "Completada")
         return Number(p.id_usuario_fin) === miId;
-      }
-
-      return true; // Pendientes: todos las ven
+      return true;
     });
 
-    // El filtro de fecha aplica solo en Pendiente y Completada
     if (filtroEstado !== "En proceso") {
       if (fechaInicio) {
         const inicio = new Date(fechaInicio);
         inicio.setHours(0, 0, 0, 0);
         resultado = resultado.filter((p) => {
-          const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
+          const campo =
+            filtroEstado === "Completada"
+              ? p.fecha_finalizacion
+              : p.fecha_creacion;
           return campo && new Date(campo) >= inicio;
         });
       }
@@ -641,7 +911,10 @@ export default function ProduccionPage() {
         const fin = new Date(fechaFin);
         fin.setHours(23, 59, 59, 999);
         resultado = resultado.filter((p) => {
-          const campo = filtroEstado === "Completada" ? p.fecha_finalizacion : p.fecha_creacion;
+          const campo =
+            filtroEstado === "Completada"
+              ? p.fecha_finalizacion
+              : p.fecha_creacion;
           return campo && new Date(campo) <= fin;
         });
       }
@@ -651,9 +924,16 @@ export default function ProduccionPage() {
       (a, b) =>
         new Date(b.fecha_creacion || 0) - new Date(a.fecha_creacion || 0),
     );
-  }, [producciones, filtroEstado, fechaInicio, fechaFin, isAdministrador, user]);
+  }, [
+    producciones,
+    filtroEstado,
+    fechaInicio,
+    fechaFin,
+    isAdministrador,
+    user,
+  ]);
 
-  // ── Calcular materiales desde ingredientes de la receta ─────────
+  // ── Calcular materiales ─────────────────────────────────────────
   const calcularMateriales = (ingredientes, cantidad) => {
     if (!ingredientes || !cantidad || isNaN(Number(cantidad))) return [];
     return ingredientes.map((ing) => ({
@@ -661,18 +941,9 @@ export default function ProduccionPage() {
       porcentaje: parseFloat(ing.cantidad_porcentaje),
       cantidadNecesaria:
         (parseFloat(ing.cantidad_porcentaje) / 100) * Number(cantidad),
+      id_materia: ing.id_materia,
     }));
   };
-
-  // Preview de materiales en el modal
-  const previewMateriales = useMemo(() => {
-    if (!recetaDetalle?.ingredientes || !formulario.cantidad_producir)
-      return null;
-    return calcularMateriales(
-      recetaDetalle.ingredientes,
-      formulario.cantidad_producir,
-    );
-  }, [recetaDetalle, formulario.cantidad_producir]);
 
   // ── Badge de estado ─────────────────────────────────────────────
   const getEstadoBadge = (estado) => {
@@ -720,13 +991,15 @@ export default function ProduccionPage() {
             Crea y gestiona órdenes de producción
           </p>
         </div>
-        <button
-          onClick={() => setModalAbierto(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Crear Orden
-        </button>
+        {isAdministrador && (
+          <button
+            onClick={() => setModalAbierto(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            Crear Orden
+          </button>
+        )}
       </div>
 
       {/* ── Estadísticas ── */}
@@ -757,7 +1030,7 @@ export default function ProduccionPage() {
         </div>
       </div>
 
-      {/* ── Filtros de estado ── */}
+      {/* ── Filtros ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
         <div className="flex gap-2 flex-wrap">
           {[
@@ -787,11 +1060,12 @@ export default function ProduccionPage() {
           ))}
         </div>
 
-        {/* Filtro de fechas — solo en Pendiente y Completada */}
         {filtroEstado !== "En proceso" && (
           <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-gray-100">
             <span className="text-sm text-gray-500">
-              {filtroEstado === "Completada" ? "Fecha completada:" : "Fecha creación:"}
+              {filtroEstado === "Completada"
+                ? "Fecha completada:"
+                : "Fecha creación:"}
             </span>
             <div className="flex items-center gap-2">
               <input
@@ -811,7 +1085,10 @@ export default function ProduccionPage() {
             </div>
             {(fechaInicio || fechaFin) && (
               <button
-                onClick={() => { setFechaInicio(""); setFechaFin(""); }}
+                onClick={() => {
+                  setFechaInicio("");
+                  setFechaFin("");
+                }}
                 className="text-sm text-gray-400 hover:text-gray-600 underline"
               >
                 Limpiar
@@ -837,14 +1114,44 @@ export default function ProduccionPage() {
             const esPendiente = p.estado === "Pendiente";
             const esProceso = p.estado === "En proceso";
 
-            const recetaDeOrden = recetas.find(
-              (r) => r.id_receta === p.id_receta,
+            // Ingredientes propios de la orden o receta base
+            const ingredientesOrdenParsed = p.ingredientes_orden
+              ? typeof p.ingredientes_orden === "string"
+                ? JSON.parse(p.ingredientes_orden)
+                : p.ingredientes_orden
+              : null;
+
+            const recetaBase = recetas.find((r) => r.id_receta === p.id_receta);
+            const ingredientesAMostrar =
+              ingredientesOrdenParsed || recetaBase?.ingredientes || [];
+            const materialesOrden = calcularMateriales(
+              ingredientesAMostrar,
+              p.cantidad_producir,
             );
-            const materialesOrden = recetaDeOrden?.ingredientes
-              ? calcularMateriales(
-                  recetaDeOrden.ingredientes,
-                  p.cantidad_producir,
-                )
+            const recetaFueModificada = !!ingredientesOrdenParsed;
+
+            // Detectar ingredientes nuevos o modificados respecto a la receta base
+            const idsBase =
+              recetaBase?.ingredientes?.map((i) => i.id_materia) ?? [];
+            const nuevosIds = recetaFueModificada
+              ? ingredientesOrdenParsed
+                  .filter((i) => !idsBase.includes(i.id_materia))
+                  .map((i) => i.id_materia)
+              : [];
+            const modificadosIds = recetaFueModificada
+              ? ingredientesOrdenParsed
+                  .filter((i) => {
+                    if (nuevosIds.includes(i.id_materia)) return false;
+                    const orig = recetaBase?.ingredientes?.find(
+                      (b) => b.id_materia === i.id_materia,
+                    );
+                    return (
+                      orig &&
+                      parseFloat(orig.cantidad_porcentaje) !==
+                        parseFloat(i.cantidad_porcentaje)
+                    );
+                  })
+                  .map((i) => i.id_materia)
               : [];
 
             return (
@@ -864,6 +1171,12 @@ export default function ProduccionPage() {
                           {p.nombre_producto}
                         </h3>
                         {getEstadoBadge(p.estado)}
+                        {/* Badge receta modificada */}
+                        {recetaFueModificada && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full border border-yellow-200">
+                            ⚠️ Receta modificada
+                          </span>
+                        )}
                       </div>
                       {p.codigo_orden && (
                         <p className="text-sm text-gray-500">
@@ -875,19 +1188,67 @@ export default function ProduccionPage() {
 
                   {/* Acciones */}
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-
-                    {/* ── Pendiente ── */}
                     {esPendiente && (
                       <>
                         <button
-                          onClick={() => iniciarProduccion(p.id_orden_produccion)}
+                          onClick={() => {
+                            setOrdenParaIniciar(p);
+                            setModalConfirmarInicio(true);
+                          }}
                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                         >
                           <Play className="w-4 h-4" />
                           Iniciar
                         </button>
+                        {/* ── Modal Confirmar Inicio ── */}
+                        {modalConfirmarInicio && ordenParaIniciar && (
+                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                              <div className="flex items-start gap-4 mb-6">
+                                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                                </div>
+                                <div>
+                                  <h2 className="font-bold text-gray-900 text-lg mb-1">
+                                    Aceptar Orden de Producción
+                                  </h2>
+                                  <p className="text-gray-600 text-sm">
+                                    ¿Confirma que desea aceptar la orden de{" "}
+                                    <strong>
+                                      "{ordenParaIniciar.nombre_producto}"
+                                    </strong>{" "}
+                                    por{" "}
+                                    <strong>
+                                      {ordenParaIniciar.cantidad_producir} KG
+                                    </strong>
+                                    ? Usted será asignado como responsable de
+                                    esta producción.
+                                  </p>
+                                </div>
+                              </div>
 
-                        {/* Solo admin: editar cantidad y eliminar */}
+                              <div className="flex gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalConfirmarInicio(false);
+                                    setOrdenParaIniciar(null);
+                                  }}
+                                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={iniciarProduccion}
+                                  className="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors font-medium"
+                                >
+                                  Confirmar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {isAdministrador && (
                           <>
                             <button
@@ -914,11 +1275,11 @@ export default function ProduccionPage() {
                       </>
                     )}
 
-                    {/* ── En proceso ── */}
                     {esProceso && (
                       <>
-                        {/* Imprimir, editar receta y completar — solo el operario asignado o el admin */}
-                        {(isAdministrador || Number(p.id_usuario_inicio) === Number(user?.id_usuario)) && (
+                        {(isAdministrador ||
+                          Number(p.id_usuario_inicio) ===
+                            Number(user?.id_usuario)) && (
                           <>
                             <button
                               onClick={() => imprimirOrden(p)}
@@ -927,7 +1288,6 @@ export default function ProduccionPage() {
                               <Printer className="w-4 h-4" />
                               Imprimir
                             </button>
-
                             <button
                               onClick={() => abrirModalEditarReceta(p)}
                               className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
@@ -935,9 +1295,11 @@ export default function ProduccionPage() {
                               <Edit className="w-4 h-4" />
                               Editar receta
                             </button>
-
                             <button
-                              onClick={() => finalizarProduccion(p.id_orden_produccion)}
+                              onClick={() => {
+                                setOrdenParaFinalizar(p);
+                                setModalConfirmarFinalizar(true);
+                              }}
                               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                             >
                               <Check className="w-4 h-4" />
@@ -945,8 +1307,51 @@ export default function ProduccionPage() {
                             </button>
                           </>
                         )}
+                        {/* ── Modal Confirmar Finalizar ── */}
+                        {modalConfirmarFinalizar && ordenParaFinalizar && (
+                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                              <div className="flex items-start gap-4 mb-6">
+                                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <CheckCircle className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div>
+                                  <h2 className="font-bold text-gray-900 text-lg mb-1">
+                                    Completar Producción
+                                  </h2>
+                                  <p className="text-gray-600 text-sm">
+                                    ¿Confirma que la producción de{" "}
+                                    <strong>
+                                      "{ordenParaFinalizar.nombre_producto}"
+                                    </strong>{" "}
+                                    ha sido completada? Esto actualizará el
+                                    inventario y consumirá los materiales.
+                                  </p>
+                                </div>
+                              </div>
 
-                        {/* Reasignar — solo admin */}
+                              <div className="flex gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalConfirmarFinalizar(false);
+                                    setOrdenParaFinalizar(null);
+                                  }}
+                                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={finalizarProduccion}
+                                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                                >
+                                  Confirmar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {isAdministrador && (
                           <button
                             onClick={() => abrirModalReasignar(p)}
@@ -1013,35 +1418,129 @@ export default function ProduccionPage() {
                   )}
                 </div>
 
-                {/* Materiales calculados por porcentaje */}
+                {/* Materiales con colores si fue modificada */}
                 {materialesOrden.length > 0 && (
                   <div className="border-t border-gray-200 pt-4">
                     <p className="text-sm font-medium text-gray-700 mb-3">
                       Materiales Necesarios:
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {materialesOrden.map((mat, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Package className="w-4 h-4 text-gray-600" />
-                            <div className="flex flex-col">
-                              <span className="text-sm text-gray-700">
-                                {mat.nombre}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {mat.porcentaje}%
-                              </span>
+                      {materialesOrden.map((mat, idx) => {
+                        const esNuevo = nuevosIds.includes(mat.id_materia);
+                        const esEditado = modificadosIds.includes(
+                          mat.id_materia,
+                        );
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between p-3 rounded-lg ${
+                              esNuevo
+                                ? "bg-green-50 border border-green-200"
+                                : esEditado
+                                  ? "bg-yellow-50 border border-yellow-200"
+                                  : "bg-gray-50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Package
+                                className={`w-4 h-4 ${esNuevo ? "text-green-600" : esEditado ? "text-yellow-600" : "text-gray-600"}`}
+                              />
+                              <div className="flex flex-col">
+                                <span
+                                  className={`text-sm ${esNuevo || esEditado ? "font-semibold" : ""} text-gray-700`}
+                                >
+                                  {mat.nombre}
+                                </span>
+                                {esNuevo && (
+                                  <span className="text-xs text-green-600 font-medium">
+                                    ✨ Nuevo ingrediente
+                                  </span>
+                                )}
+                                {esEditado && (
+                                  <span className="text-xs text-yellow-600 font-medium">
+                                    ✏️ Cantidad modificada
+                                  </span>
+                                )}
+                                {!esNuevo && !esEditado && (
+                                  <span className="text-xs text-gray-400">
+                                    {mat.porcentaje}%
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                            <span
+                              className={`text-sm font-bold ${esNuevo ? "text-green-700" : esEditado ? "text-yellow-700" : "text-gray-900"}`}
+                            >
+                              {mat.cantidadNecesaria.toFixed(2)} KG
+                            </span>
                           </div>
-                          <span className="text-sm font-bold text-gray-900">
-                            {mat.cantidadNecesaria.toFixed(2)} KG
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
+                  </div>
+                )}
+
+                {/* Badge de receta modificada con motivo */}
+                {recetaFueModificada && (
+                  <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <p className="text-sm text-yellow-900 font-medium mb-2">
+                      ⚠️ Receta Modificada
+                    </p>
+                    {p.observaciones && (
+                      <p className="text-sm text-yellow-700 mb-2">
+                        <strong>Motivo:</strong> {p.observaciones}
+                      </p>
+                    )}
+
+                    {/* Ingredientes eliminados */}
+                    {(() => {
+                      const eliminados =
+                        recetaBase?.ingredientes?.filter(
+                          (i) =>
+                            !ingredientesOrdenParsed.some(
+                              (o) =>
+                                String(o.id_materia) === String(i.id_materia),
+                            ),
+                        ) ?? [];
+                      return eliminados.length > 0 ? (
+                        <div className="mb-2">
+                          <p className="text-xs font-semibold text-red-700 mb-1">
+                            🗑️ Ingredientes eliminados:
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {eliminados.map((e, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full border border-red-200"
+                              >
+                                {e.nombre_materia}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* Ingredientes agregados */}
+                    {nuevosIds.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-green-700 mb-1">
+                          ✨ Ingredientes agregados:
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {ingredientesOrdenParsed
+                            .filter((i) => nuevosIds.includes(i.id_materia))
+                            .map((i, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200"
+                              >
+                                {i.nombre_materia}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1071,54 +1570,96 @@ export default function ProduccionPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Seleccione Receta
                 </label>
-                <select
-                  value={formulario.id_receta}
-                  onChange={(e) =>
-                    setFormulario({ ...formulario, id_receta: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione una receta</option>
-                  {recetas
-                    .filter((r) => r.estado === "Activo")
-                    .map((r) => (
-                      <option key={r.id_receta} value={r.id_receta}>
-                        {r.nombre_producto}
-                      </option>
-                    ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={formulario.id_receta}
+                    onChange={(e) => {
+                      setFormulario({
+                        ...formulario,
+                        id_receta: e.target.value,
+                      });
+                      setErroresFormulario((prev) => ({
+                        ...prev,
+                        id_receta: undefined,
+                      }));
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      erroresFormulario.id_receta
+                        ? "border-red-400 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    <option value="">Seleccione una receta</option>
+                    {recetas
+                      .filter((r) => r.estado === "Activo")
+                      .map((r) => (
+                        <option key={r.id_receta} value={r.id_receta}>
+                          {r.nombre_producto}
+                        </option>
+                      ))}
+                  </select>
+                  {erroresFormulario.id_receta && (
+                    <div className="absolute left-2 top-full mt-1 z-50 flex items-center gap-1.5 bg-gray-800 text-white text-xs px-3 py-1.5 rounded shadow-lg whitespace-nowrap">
+                      <div className="absolute -top-1.5 left-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-800" />
+                      <span className="bg-yellow-400 text-gray-900 font-bold rounded-sm px-1 text-xs">
+                        !
+                      </span>
+                      {erroresFormulario.id_receta}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Cantidad a Producir (KG)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Ej: 100"
-                  value={formulario.cantidad_producir}
-                  onChange={(e) =>
-                    setFormulario({
-                      ...formulario,
-                      cantidad_producir: e.target.value,
-                    })
-                  }
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    formulario.cantidad_producir !== "" &&
-                    Number(formulario.cantidad_producir) <= 0
-                      ? "border-red-400 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                />
-                {formulario.cantidad_producir !== "" &&
-                  Number(formulario.cantidad_producir) <= 0 && (
-                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      La cantidad debe ser mayor a 0
-                    </p>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={999999.99}
+                    placeholder="Ej: 100"
+                    value={formulario.cantidad_producir}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      if (valor.length > 9) return;
+                      setFormulario({
+                        ...formulario,
+                        cantidad_producir: valor,
+                      });
+                      setErroresFormulario((prev) => ({
+                        ...prev,
+                        cantidad_producir: undefined,
+                      }));
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formulario.cantidad_producir !== "" &&
+                      Number(formulario.cantidad_producir) <= 0
+                        ? "border-red-400 bg-red-50"
+                        : erroresFormulario.cantidad_producir
+                          ? "border-red-400 bg-red-50"
+                          : "border-gray-300"
+                    }`}
+                  />
+                  {erroresFormulario.cantidad_producir && (
+                    <div className="absolute left-2 top-full mt-1 z-50 flex items-center gap-1.5 bg-gray-800 text-white text-xs px-3 py-1.5 rounded shadow-lg whitespace-nowrap">
+                      <div className="absolute -top-1.5 left-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-800" />
+                      <span className="bg-yellow-400 text-gray-900 font-bold rounded-sm px-1 text-xs">
+                        !
+                      </span>
+                      {erroresFormulario.cantidad_producir}
+                    </div>
                   )}
+                  {formulario.cantidad_producir !== "" &&
+                    Number(formulario.cantidad_producir) <= 0 && (
+                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        La cantidad debe ser mayor a 0
+                      </p>
+                    )}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Ingrese el peso total del producto final a fabricar
                 </p>
@@ -1132,11 +1673,7 @@ export default function ProduccionPage() {
 
               {!loadingStock && stockPreview && (
                 <div
-                  className={`p-4 rounded-lg border-2 ${
-                    stockPreview.posible
-                      ? "bg-green-50 border-green-200"
-                      : "bg-red-50 border-red-200"
-                  }`}
+                  className={`p-4 rounded-lg border-2 ${stockPreview.posible ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
                 >
                   <div className="flex items-center gap-2 mb-3">
                     {stockPreview.posible ? (
@@ -1145,9 +1682,7 @@ export default function ProduccionPage() {
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                     )}
                     <h4
-                      className={`font-medium ${
-                        stockPreview.posible ? "text-green-900" : "text-red-900"
-                      }`}
+                      className={`font-medium ${stockPreview.posible ? "text-green-900" : "text-red-900"}`}
                     >
                       {stockPreview.posible
                         ? "Stock suficiente — se puede crear la orden"
@@ -1158,11 +1693,7 @@ export default function ProduccionPage() {
                     {stockPreview.ingredientes.map((ing, idx) => (
                       <div
                         key={idx}
-                        className={`p-3 rounded-lg border ${
-                          ing.suficiente
-                            ? "bg-white border-gray-200"
-                            : "bg-red-100 border-red-300"
-                        }`}
+                        className={`p-3 rounded-lg border ${ing.suficiente ? "bg-white border-gray-200" : "bg-red-100 border-red-300"}`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
@@ -1175,9 +1706,7 @@ export default function ProduccionPage() {
                           </div>
                           <div className="text-right text-sm">
                             <p
-                              className={`font-bold ${
-                                ing.suficiente ? "text-gray-900" : "text-red-700"
-                              }`}
+                              className={`font-bold ${ing.suficiente ? "text-gray-900" : "text-red-700"}`}
                             >
                               Necesita: {ing.cantidad_necesaria.toFixed(2)} KG
                             </p>
@@ -1242,7 +1771,7 @@ export default function ProduccionPage() {
         </div>
       )}
 
-      {/* ── Modal Editar Cantidad (solo admin, orden pendiente) ── */}
+      {/* ── Modal Editar Cantidad ── */}
       {modalEditarCantidad && ordenEditando && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full my-8">
@@ -1257,7 +1786,6 @@ export default function ProduccionPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1281,7 +1809,6 @@ export default function ProduccionPage() {
                     ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nueva Cantidad a Producir (KG)
@@ -1314,11 +1841,7 @@ export default function ProduccionPage() {
 
               {!loadingStockEditar && stockPreviewEditar && (
                 <div
-                  className={`p-4 rounded-lg border-2 ${
-                    stockPreviewEditar.posible
-                      ? "bg-green-50 border-green-200"
-                      : "bg-red-50 border-red-200"
-                  }`}
+                  className={`p-4 rounded-lg border-2 ${stockPreviewEditar.posible ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
                 >
                   <div className="flex items-center gap-2 mb-3">
                     {stockPreviewEditar.posible ? (
@@ -1327,11 +1850,7 @@ export default function ProduccionPage() {
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                     )}
                     <h4
-                      className={`font-medium ${
-                        stockPreviewEditar.posible
-                          ? "text-green-900"
-                          : "text-red-900"
-                      }`}
+                      className={`font-medium ${stockPreviewEditar.posible ? "text-green-900" : "text-red-900"}`}
                     >
                       {stockPreviewEditar.posible
                         ? "Stock suficiente para la nueva cantidad"
@@ -1342,11 +1861,7 @@ export default function ProduccionPage() {
                     {stockPreviewEditar.ingredientes.map((ing, idx) => (
                       <div
                         key={idx}
-                        className={`p-3 rounded-lg border ${
-                          ing.suficiente
-                            ? "bg-white border-gray-200"
-                            : "bg-red-100 border-red-300"
-                        }`}
+                        className={`p-3 rounded-lg border ${ing.suficiente ? "bg-white border-gray-200" : "bg-red-100 border-red-300"}`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
@@ -1359,9 +1874,7 @@ export default function ProduccionPage() {
                           </div>
                           <div className="text-right text-sm">
                             <p
-                              className={`font-bold ${
-                                ing.suficiente ? "text-gray-900" : "text-red-700"
-                              }`}
+                              className={`font-bold ${ing.suficiente ? "text-gray-900" : "text-red-700"}`}
                             >
                               Necesita: {ing.cantidad_necesaria.toFixed(2)} KG
                             </p>
@@ -1415,7 +1928,7 @@ export default function ProduccionPage() {
         </div>
       )}
 
-      {/* ── Modal Editar Receta (admin y operario, orden en proceso) ── */}
+      {/* ── Modal Editar Receta ── */}
       {modalEditarReceta && ordenEditandoReceta && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full my-8">
@@ -1430,7 +1943,6 @@ export default function ProduccionPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1438,50 +1950,80 @@ export default function ProduccionPage() {
                 </label>
                 <div className="space-y-2">
                   {ingredientesEditados.map((ing, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <select
-                        value={ing.id_materia}
-                        onChange={(e) =>
-                          actualizarIngrediente(idx, "id_materia", e.target.value)
-                        }
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="">Seleccione materia prima</option>
-                        {materiasPrimas
-                          .filter((m) => m.estado === "Activo")
-                          .map((m) => (
-                            <option key={m.id_materia} value={m.id_materia}>
-                              {m.nombre}
-                            </option>
-                          ))}
-                      </select>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={ing.cantidad_porcentaje}
-                        onChange={(e) =>
-                          actualizarIngrediente(
-                            idx,
-                            "cantidad_porcentaje",
-                            e.target.value,
-                          )
-                        }
-                        className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center"
-                        placeholder="%"
-                      />
-                      <span className="text-gray-500 text-sm">%</span>
-                      <button
-                        type="button"
-                        onClick={() => eliminarIngrediente(idx)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                    <div key={idx} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={ing.id_materia}
+                          onChange={(e) =>
+                            actualizarIngrediente(
+                              idx,
+                              "id_materia",
+                              e.target.value,
+                            )
+                          }
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="">Seleccione materia prima</option>
+                          {materiasPrimas
+                            .filter((m) => m.estado === "Activo")
+                            .map((m) => (
+                              <option key={m.id_materia} value={m.id_materia}>
+                                {m.nombre}
+                              </option>
+                            ))}
+                        </select>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={ing.cantidad_porcentaje}
+                          onChange={(e) =>
+                            actualizarIngrediente(
+                              idx,
+                              "cantidad_porcentaje",
+                              e.target.value,
+                            )
+                          }
+                          className={`w-24 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center ${
+                            ing.cantidad_porcentaje <= 0
+                              ? "border-red-400 bg-red-50"
+                              : "border-gray-300"
+                          }`}
+                          placeholder="%"
+                        />
+                        <span className="text-gray-500 text-sm">%</span>
+                        <button
+                          type="button"
+                          onClick={() => eliminarIngrediente(idx)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {ing.id_materia &&
+                        ing.cantidad_porcentaje > 0 &&
+                        (() => {
+                          const info = stockEdicion[String(ing.id_materia)];
+                          if (!info) return null;
+                          const sinStock = !info.suficiente;
+                          return (
+                            <span
+                              className={`text-xs px-2 py-1 rounded-lg whitespace-nowrap w-fit ml-1 ${
+                                sinStock
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              {sinStock
+                                ? `❌ Faltan ${(info.cantidad_necesaria - info.stock_disponible).toFixed(2)} kg`
+                                : `✅ ${info.stock_disponible.toFixed(2)} kg disponibles`}
+                            </span>
+                          );
+                        })()}
                     </div>
                   ))}
                 </div>
-
                 <button
                   type="button"
                   onClick={agregarIngrediente}
@@ -1492,20 +2034,11 @@ export default function ProduccionPage() {
                 </button>
               </div>
 
-              {/* Suma de porcentajes */}
               <div
-                className={`p-3 rounded-lg border ${
-                  Math.abs(sumaTotal - 100) <= 0.01
-                    ? "bg-green-50 border-green-200"
-                    : "bg-red-50 border-red-200"
-                }`}
+                className={`p-3 rounded-lg border ${Math.abs(sumaTotal - 100) <= 0.01 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
               >
                 <p
-                  className={`text-sm font-medium ${
-                    Math.abs(sumaTotal - 100) <= 0.01
-                      ? "text-green-800"
-                      : "text-red-800"
-                  }`}
+                  className={`text-sm font-medium ${Math.abs(sumaTotal - 100) <= 0.01 ? "text-green-800" : "text-red-800"}`}
                 >
                   Suma total: {sumaTotal.toFixed(2)}%
                   {Math.abs(sumaTotal - 100) <= 0.01
@@ -1549,7 +2082,7 @@ export default function ProduccionPage() {
         </div>
       )}
 
-      {/* ── Modal Reasignar Operario (solo admin, orden en proceso) ── */}
+      {/* ── Modal Reasignar Operario ── */}
       {modalReasignar && ordenReasignando && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
@@ -1564,16 +2097,19 @@ export default function ProduccionPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-1">{ordenReasignando.nombre_producto}</p>
+                <p className="font-medium mb-1">
+                  {ordenReasignando.nombre_producto}
+                </p>
                 <p>Cantidad: {ordenReasignando.cantidad_producir} KG</p>
+                {ordenReasignando.usuario_inicio && (
+                  <p>Operario actual: {ordenReasignando.usuario_inicio}</p>
+                )}
                 {ordenReasignando.usuario_creador && (
                   <p>Creado por: {ordenReasignando.usuario_creador}</p>
                 )}
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nuevo Operario
@@ -1591,7 +2127,6 @@ export default function ProduccionPage() {
                   ))}
                 </select>
               </div>
-
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
