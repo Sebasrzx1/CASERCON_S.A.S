@@ -39,7 +39,7 @@ const movimientosRoutes = require('./routes/movimientosRoutes');
 const proveedoresRoutes = require('./routes/proveedoresRoutes')
 const userRoutes = require('./routes/userRoutes')
 const produccionRoutes = require('./routes/produccionRoutes')
-const pedidosRouter = require('./routes/pedidosRoutes')
+const pedidosRoutes = require("./routes/pedidosRoutes");
 
 // Ruta de autenticacion para los usuarios.
 app.use('/api/auth', atuhRoutes)
@@ -63,7 +63,7 @@ app.use('/api/proveedores', proveedoresRoutes)
 app.use('/api/produccion', produccionRoutes)
 
 //Ruta para pedidos
-app.use('/api/pedidos', pedidosRouter)
+app.use("/api/pedidos", pedidosRoutes);
 
 //Manejo de rutas no encontradas (404)
 app.all(/(.*)/, (req, res, next)=>{

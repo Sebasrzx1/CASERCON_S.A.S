@@ -13,6 +13,8 @@ import {
   Edit,
   Printer,
   Users,
+  Search, 
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -46,12 +48,14 @@ export default function ProduccionPage() {
   // ── Filtros de fecha ───────────────────────────────────────────
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   const cambiarFiltroEstado = (valor) => {
-    setFiltroEstado(valor);
-    setFechaInicio("");
-    setFechaFin("");
-  };
+  setFiltroEstado(valor);
+  setFechaInicio("");
+  setFechaFin("");
+  setBusqueda("");
+};
 
   // ── Modal editar cantidad ───────────────────────────────────────
   const [modalEditarCantidad, setModalEditarCantidad] = useState(false);
@@ -1032,33 +1036,26 @@ export default function ProduccionPage() {
 
       {/* ── Filtros ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          {[
-            {
-              label: "Pendientes",
-              value: "Pendiente",
-              active: "bg-yellow-600",
-            },
-            { label: "En Proceso", value: "En proceso", active: "bg-blue-600" },
-            {
-              label: "Completadas",
-              value: "Completada",
-              active: "bg-green-600",
-            },
-          ].map(({ label, value, active }) => (
-            <button
-              key={value}
-              onClick={() => cambiarFiltroEstado(value)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === value
-                  ? `${active} text-white`
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+  {/* Tabs — siempre visibles */}
+  <div className="flex gap-2 flex-wrap">
+    {[
+      { label: "Pendientes", value: "Pendiente", active: "bg-yellow-600" },
+      { label: "En Proceso", value: "En proceso", active: "bg-blue-600"  },
+      { label: "Completadas", value: "Completada", active: "bg-green-600" },
+    ].map(({ label, value, active }) => (
+      <button
+        key={value}
+        onClick={() => cambiarFiltroEstado(value)}
+        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+          filtroEstado === value
+            ? `${active} text-white`
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+        }`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
 
         {filtroEstado !== "En proceso" && (
           <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-gray-100">
