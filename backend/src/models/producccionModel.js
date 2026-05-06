@@ -4,50 +4,65 @@ const ProduccionModel = {
   // Obtener todas las órdenes de producción
   async findAll() {
     const query = `
-    SELECT 
-      op.id_orden_produccion,
-      op.codigo_orden,
-      r.id_receta,
-      r.nombre_producto,
-      uc.nombre AS usuario_creador,
-      ui.nombre AS usuario_inicio,
-      uf.nombre AS usuario_fin,
-      op.cantidad_producir,
-      op.estado,
-      op.fecha_creacion,
-      op.fecha_finalizacion,
-      op.id_usuario_inicio,
-      op.id_usuario_fin,
-      op.observaciones,
-      (
-        SELECT JSON_ARRAYAGG(
-          JSON_OBJECT(
-            'id_materia', dop.id_materia,
-            'nombre_materia', mp2.nombre,
-            'cantidad_porcentaje', dop.cantidad_porcentaje
-          )
+  SELECT 
+    op.id_orden_produccion,
+    op.codigo_orden,
+    r.id_receta,
+    r.nombre_producto,
+    uc.nombre AS usuario_creador,
+    ui.nombre AS usuario_inicio,
+    uf.nombre AS usuario_fin,
+    op.cantidad_producir,
+    op.estado,
+    op.fecha_creacion,
+    op.fecha_finalizacion,
+    op.id_usuario_inicio,
+    op.id_usuario_fin,
+    op.observaciones,
+    (
+      SELECT JSON_ARRAYAGG(
+        JSON_OBJECT(
+          'id_materia', dop.id_materia,
+          'nombre_materia', mp2.nombre,
+          'cantidad_porcentaje', dop.cantidad_porcentaje
         )
-        FROM detalle_orden_produccion dop
-        INNER JOIN materias_primas mp2 ON dop.id_materia = mp2.id_materia
-        WHERE dop.id_orden_produccion = op.id_orden_produccion
-      ) AS ingredientes_orden
-    FROM ordenes_produccion op
-    INNER JOIN recetas r 
-      ON op.id_receta = r.id_receta
-    INNER JOIN usuarios uc 
-      ON op.id_usuario_creador = uc.id_usuario
-    LEFT JOIN usuarios ui
-      ON op.id_usuario_inicio = ui.id_usuario
-    LEFT JOIN usuarios uf
-      ON op.id_usuario_fin = uf.id_usuario
-    ORDER BY op.fecha_creacion ASC;
+      )
+      FROM detalle_orden_produccion dop
+      INNER JOIN materias_primas mp2 ON dop.id_materia = mp2.id_materia
+      WHERE dop.id_orden_produccion = op.id_orden_produccion
+    ) AS ingredientes_orden,
+    -- ✅ NUEVO: lotes consumidos por orden completada
+    (
+      SELECT JSON_ARRAYAGG(
+        JSON_OBJECT(
+          'nombre_materia', mp3.nombre,
+          'codigo_lote',    l.codigo_lote,
+          'cantidad_usada', mi.cantidad
+        )
+      )
+      FROM movimientos_inventario mi
+      INNER JOIN materias_primas mp3 ON mi.id_materia = mp3.id_materia
+      INNER JOIN lotes l ON mi.id_lote = l.id_lote
+      WHERE mi.id_orden_produccion = op.id_orden_produccion
+        AND mi.tipo_movimiento = 'Salida'
+    ) AS lotes_usados
+  FROM ordenes_produccion op
+  INNER JOIN recetas r 
+    ON op.id_receta = r.id_receta
+  INNER JOIN usuarios uc 
+    ON op.id_usuario_creador = uc.id_usuario
+  LEFT JOIN usuarios ui
+    ON op.id_usuario_inicio = ui.id_usuario
+  LEFT JOIN usuarios uf
+    ON op.id_usuario_fin = uf.id_usuario
+  ORDER BY op.fecha_creacion ASC;
   `;
 
     const [rows] = await db.execute(query);
     return rows;
   },
 
-  // 🔍 Obtener una orden por ID
+  // Obtener una orden por ID
   async findById(id) {
     const query = `
       SELECT 

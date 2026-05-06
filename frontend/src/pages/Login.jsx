@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Lock, Mail, AlertCircle } from "lucide-react";
+import { Lock, Mail, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logoCarsecon from "../assets/logo.png";
 
@@ -10,7 +10,7 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [error, setError] = useState("");
-
+  const [mostrarContraseña, setMostrarContraseña] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -102,18 +102,26 @@ export function Login() {
             </div>
 
             {/* Password */}
+            {/* Password */}
             <div>
               <label className="text-sm">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 text-gray-400" />
                 <input
-                  type="password"
+                  type={mostrarContraseña ? "text" : "password"}
                   placeholder="Ingrese su contraseña"
                   value={contraseña}
                   onChange={(e) => setContraseña(e.target.value)}
-                  className="w-full pl-10 p-3 border rounded-lg"
+                  className="w-full pl-10 pr-10 p-3 border rounded-lg"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setMostrarContraseña(!mostrarContraseña)}
+                  className="absolute right-5 top-3.5 text-gray-400 hover:text-gray-600 transition"
+                >
+                  {mostrarContraseña ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
             </div>
 
