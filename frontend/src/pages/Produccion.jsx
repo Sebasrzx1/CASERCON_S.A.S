@@ -1377,7 +1377,7 @@ export default function ProduccionPage() {
                 </div>
 
                 {/* Materiales con colores si fue modificada */}
-                {materialesOrden.length > 0 && p.estado !=="Completada" &&(
+                {materialesOrden.length > 0 && p.estado !== "Completada" && (
                   <div className="border-t border-gray-200 pt-4">
                     <p className="text-sm font-medium text-gray-700 mb-3">
                       Materiales Necesarios:
@@ -1973,11 +1973,24 @@ export default function ProduccionPage() {
                           <option value="">Seleccione materia prima</option>
                           {materiasPrimas
                             .filter((m) => m.estado === "Activo")
-                            .map((m) => (
-                              <option key={m.id_materia} value={m.id_materia}>
-                                {m.nombre}
-                              </option>
-                            ))}
+                            .map((m) => {
+                              const enUso = ingredientesEditados.some(
+                                (otro, i) =>
+                                  i !== idx &&
+                                  String(otro.id_materia) ===
+                                    String(m.id_materia),
+                              );
+                              return (
+                                <option
+                                  key={m.id_materia}
+                                  value={m.id_materia}
+                                  disabled={enUso}
+                                >
+                                  {m.nombre}
+                                  {enUso ? " (ya agregada)" : ""}
+                                </option>
+                              );
+                            })}
                         </select>
                         <input
                           type="number"
