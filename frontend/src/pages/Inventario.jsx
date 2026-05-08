@@ -2,35 +2,60 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
-  Package, Plus, Edit, Search,
-  AlertTriangle, CheckCircle, XCircle, X,
-  FileText, Calendar, ShoppingCart, ChevronDown, ChevronUp,
-  Check, Ban,
+  Package, Plus, Edit, Search, AlertTriangle, CheckCircle,
+  XCircle, X, FileText, Calendar, ShoppingCart,
+  ChevronDown, ChevronUp, Check, Ban,
 } from "lucide-react";
 import { z } from "zod";
 
 const API = "http://localhost:3000/api/materias-primas";
 
-// ─── Calcula el estado de stock igual que el backend ─────────────────────────
+// ─── Límites alineados con la base de datos ───────────────────────────────────
+// nombre       VARCHAR(80)
+// codigo       VARCHAR(100) — solo numérico, usamos 11 dígitos como en la BD
+// abreviacion  VARCHAR(3)
+// stock_min    DECIMAL(12,2) → parte entera max 10 dígitos → 9999999999.99
+// stock_inicial DECIMAL(12,2) → igual
+const LIMITES = {
+  nombre:      80,
+  abreviacion: 3,
+  codigo_max:  11,
+  stock_max:   9999999999.99,
+};
+
+// ─── ÚNICA fuente de verdad para el estado de stock ──────────────────────────
 const calcularEstado = (stockActual, stockMinimo) => {
-  if (stockActual <= stockMinimo * 0.5) return "Critico";
-  if (stockActual <= stockMinimo)        return "Bajo";
+  const actual = parseFloat(stockActual) || 0;
+  const minimo = parseFloat(stockMinimo) || 0;
+  if (actual <= minimo)      return "Critico";
+  if (actual <= minimo * 2)  return "Bajo";
   return "Suficiente";
 };
 
-const StatusBadge = ({ estado }) => {
+// ─── Badge de estado ──────────────────────────────────────────────────────────
+const StatusBadge = ({ stockActual, stockMinimo }) => {
+  const estado = calcularEstado(stockActual, stockMinimo);
   const cfg = {
-    Critico:    { cls: "bg-red-100 text-red-700",      Icon: XCircle,       label: "Crítico"    },
-    Bajo:       { cls: "bg-yellow-100 text-yellow-700", Icon: AlertTriangle, label: "Bajo"       },
-    Suficiente: { cls: "bg-green-100 text-green-700",  Icon: CheckCircle,   label: "Suficiente" },
+    Critico:    { cls: "bg-red-100 text-red-700",      Icon: XCircle,      label: "Crítico"    },
+    Bajo:       { cls: "bg-yellow-100 text-yellow-700", Icon: AlertTriangle, label: "Bajo"      },
+    Suficiente: { cls: "bg-green-100 text-green-700",  Icon: CheckCircle,  label: "Suficiente" },
   }[estado] ?? { cls: "bg-gray-100 text-gray-700", Icon: Package, label: estado };
 
   return (
     <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${cfg.cls}`}>
-      <cfg.Icon className="w-4 h-4" />
-      {cfg.label}
+      <cfg.Icon className="w-4 h-4" />{cfg.label}
     </span>
   );
+};
+
+// ─── Contador de caracteres ───────────────────────────────────────────────────
+const CharCount = ({ value, max }) => {
+  const len  = String(value || "").length;
+  const pct  = len / max;
+  const cls  = pct >= 1 ? "text-red-500 font-semibold"
+             : pct >= 0.85 ? "text-amber-500"
+             : "text-gray-400";
+  return <span className={`text-xs ${cls}`}>{len}/{max}</span>;
 };
 
 const FORM_VACIO = {
@@ -38,51 +63,74 @@ const FORM_VACIO = {
   id_categoria_materia: "", stock_min: "", stock_inicial: "",
 };
 
-// ─── Componente principal ─────────────────────────────────────────────────────
 export default function Inventario() {
   const { isAdministrador, user } = useAuth();
 
-  // ── Datos ─────────────────────────────────────────────────────────────────
-  const [materias, setMaterias]         = useState([]);
-  const [categorias, setCategorias]     = useState([]);
-  const [cargando, setCargando]         = useState(true);
+  const [materias,    setMaterias]    = useState([]);
+  const [categorias,  setCategorias]  = useState([]);
+  const [cargando,    setCargando]    = useState(true);
 
-  // ── Filtros ───────────────────────────────────────────────────────────────
-  const [busqueda, setBusqueda]         = useState("");
-  const [filtroStock, setFiltroStock]   = useState("todos");
-  const [filtroEstado, setFiltroEstado] = useState("Activo"); // "Activo" | "Inhabilitado"
-  const [catsFiltro, setCatsFiltro]     = useState(new Set());
-  const [mostrarCats, setMostrarCats]   = useState(false);
+  const [busqueda,     setBusqueda]     = useState("");
+  const [filtroStock,  setFiltroStock]  = useState("todos");
+  const [filtroEstado, setFiltroEstado] = useState("Activo");
+  const [catsFiltro,   setCatsFiltro]   = useState(new Set());
+  const [mostrarCats,  setMostrarCats]  = useState(false);
 
-  // ── Modal crear / editar ──────────────────────────────────────────────────
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [editando, setEditando]         = useState(null);
-  const [formulario, setFormulario]     = useState(FORM_VACIO);
-  const [guardando, setGuardando]       = useState(false);
+  const [modalAbierto,     setModalAbierto]     = useState(false);
+  const [editando,         setEditando]         = useState(null);
+  const [formulario,       setFormulario]       = useState(FORM_VACIO);
+  const [guardando,        setGuardando]        = useState(false);
   const [loteInicialUsado, setLoteInicialUsado] = useState(false);
+  const [errores,          setErrores]          = useState({});
 
-  // ── Modal lotes ───────────────────────────────────────────────────────────
-  const [modalLotes, setModalLotes]       = useState(false);
-  const [materiaLotes, setMateriaLotes]   = useState(null);
-  const [lotes, setLotes]                 = useState([]);
+  const [modalLotes,    setModalLotes]    = useState(false);
+  const [materiaLotes,  setMateriaLotes]  = useState(null);
+  const [lotes,         setLotes]         = useState([]);
   const [cargandoLotes, setCargandoLotes] = useState(false);
 
-  // ── Confirm ───────────────────────────────────────────────────────────────
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmData, setConfirmData] = useState(null); // { materia, accion }
-  // Después de los otros useState
-  const [errores, setErrores] = useState({});
+  const [confirmData, setConfirmData] = useState(null);
 
+  // ─── Schema Zod alineado con la BD ───────────────────────────────────────
   const materiaPrimaSchema = z.object({
-  nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
-  codigo: z.string().min(1, "El código es obligatorio"),
-  abreviacion: z.string().min(1, "La abreviación es obligatoria").max(3, "Máximo 3 caracteres"),
-  id_categoria_materia: z.string().min(1, "Seleccione una categoría"),
-  stock_min: z.coerce.number().min(0, "El stock mínimo no puede ser negativo"),
-  stock_inicial: z.coerce.number().min(0.01, "El stock inicial debe ser mayor a 0"),
-});
+    nombre: z
+      .string()
+      .trim()
+      .min(3,  "El nombre debe tener al menos 3 caracteres")
+      .max(LIMITES.nombre, `El nombre no puede superar ${LIMITES.nombre} caracteres`),
 
-  // ── Protección de ruta ────────────────────────────────────────────────────
+    codigo: z
+      .string()
+      .min(1, "El código es obligatorio")
+      .max(LIMITES.codigo_max, `El código no puede superar ${LIMITES.codigo_max} dígitos`),
+
+    abreviacion: z
+      .string()
+      .trim()
+      .min(1, "La abreviación es obligatoria")
+      .max(LIMITES.abreviacion, `Máximo ${LIMITES.abreviacion} caracteres`),
+
+    id_categoria_materia: z
+      .string()
+      .min(1, "Seleccione una categoría"),
+
+    stock_min: z.coerce
+      .number({ invalid_type_error: "Ingrese un número válido" })
+      .min(0,                "El stock mínimo no puede ser negativo")
+      .max(LIMITES.stock_max, `El stock mínimo supera el límite permitido (${LIMITES.stock_max.toLocaleString("es-CO")} kg)`),
+
+    stock_inicial: z.coerce
+      .number({ invalid_type_error: "Ingrese un número válido" })
+      .min(0.01,             "El stock inicial debe ser mayor a 0")
+      .max(LIMITES.stock_max, `El stock inicial supera el límite permitido (${LIMITES.stock_max.toLocaleString("es-CO")} kg)`),
+  });
+
+  // ─── Helper: limpiar error de un campo al editarlo ────────────────────────
+  const setField = (campo, valor) => {
+    setFormulario((prev) => ({ ...prev, [campo]: valor }));
+    if (errores[campo]) setErrores((prev) => { const e = { ...prev }; delete e[campo]; return e; });
+  };
+
   if (!isAdministrador) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -92,18 +140,15 @@ export default function Inventario() {
     );
   }
 
-  // ── Carga de datos ────────────────────────────────────────────────────────
+  // ─── Carga ────────────────────────────────────────────────────────────────
   const cargarMaterias = async () => {
     setCargando(true);
     try {
       const res  = await fetch(API);
       const data = await res.json();
       setMaterias(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error("Error al cargar materias primas");
-    } finally {
-      setCargando(false);
-    }
+    } catch { toast.error("Error al cargar materias primas"); }
+    finally  { setCargando(false); }
   };
 
   const cargarCategorias = async () => {
@@ -114,51 +159,47 @@ export default function Inventario() {
     } catch { /* silencioso */ }
   };
 
-  useEffect(() => {
-    cargarMaterias();
-    cargarCategorias();
-  }, []);
+  useEffect(() => { cargarMaterias(); cargarCategorias(); }, []);
 
-  // ── Filtrado ──────────────────────────────────────────────────────────────
-  const materiasFiltradas = useMemo(() => {
-    return materias.filter((m) => {
+  // ─── Filtrado ─────────────────────────────────────────────────────────────
+  const materiasFiltradas = useMemo(() =>
+    materias.filter((m) => {
       const coincideNombre = m.nombre.toLowerCase().includes(busqueda.toLowerCase());
       const estadoStock    = calcularEstado(m.stockActual, m.stockMinimo);
       const coincideStock  = filtroStock === "todos" || estadoStock === filtroStock;
       const coincideEstado = m.estado === filtroEstado;
       const coincideCat    = catsFiltro.size === 0 || catsFiltro.has(m.categoria);
       return coincideNombre && coincideStock && coincideEstado && coincideCat;
-    });
-  }, [materias, busqueda, filtroStock, filtroEstado, catsFiltro]);
+    }),
+  [materias, busqueda, filtroStock, filtroEstado, catsFiltro]);
 
-  const estadisticas = useMemo(() => ({
-    total:      materias.filter(m => m.estado === "Activo").length,
-    suficiente: materias.filter(m => m.estado === "Activo" && calcularEstado(m.stockActual, m.stockMinimo) === "Suficiente").length,
-    bajo:       materias.filter(m => m.estado === "Activo" && calcularEstado(m.stockActual, m.stockMinimo) === "Bajo").length,
-    critico:    materias.filter(m => m.estado === "Activo" && calcularEstado(m.stockActual, m.stockMinimo) === "Critico").length,
-  }), [materias]);
+  const estadisticas = useMemo(() => {
+    const activas = materias.filter((m) => m.estado === "Activo");
+    return {
+      total:      activas.length,
+      suficiente: activas.filter((m) => calcularEstado(m.stockActual, m.stockMinimo) === "Suficiente").length,
+      bajo:       activas.filter((m) => calcularEstado(m.stockActual, m.stockMinimo) === "Bajo").length,
+      critico:    activas.filter((m) => calcularEstado(m.stockActual, m.stockMinimo) === "Critico").length,
+    };
+  }, [materias]);
 
-  // ── Modal crear / editar ──────────────────────────────────────────────────
+  // ─── Modal ────────────────────────────────────────────────────────────────
   const abrirModal = (materia = null) => {
-  setEditando(materia);
-
-  if (materia) {
-    setLoteInicialUsado(materia.loteInicialUsado);
-  }
-
-  setFormulario(materia ? {
-    nombre:               materia.nombre,
-    codigo:               materia.codigo || "",
-    abreviacion:          materia.abreviacion || "",
-    id_categoria_materia: materia.id_categoria_materia
-      ? String(materia.id_categoria_materia)  // 👈 convierte a string
-      : "",
-    stock_min:            materia.stockMinimo ?? "",
-    stock_inicial:        materia.stockActual ?? "",
-  } : FORM_VACIO);
-
-  setModalAbierto(true);
-};
+    setEditando(materia);
+    if (materia) setLoteInicialUsado(materia.loteInicialUsado);
+    setFormulario(
+      materia ? {
+        nombre:               materia.nombre,
+        codigo:               materia.codigo || "",
+        abreviacion:          materia.abreviacion || "",
+        id_categoria_materia: materia.id_categoria_materia ? String(materia.id_categoria_materia) : "",
+        stock_min:            materia.stockMinimo ?? "",
+        stock_inicial:        materia.stockActual ?? "",
+      } : FORM_VACIO,
+    );
+    setErrores({});
+    setModalAbierto(true);
+  };
 
   const cerrarModal = () => {
     setModalAbierto(false);
@@ -167,142 +208,127 @@ export default function Inventario() {
     setErrores({});
   };
 
+  // ─── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setErrores({});
+    e.preventDefault();
+    setErrores({});
 
-  const schemaValidar = editando && loteInicialUsado
-    ? materiaPrimaSchema.omit({ stock_inicial: true })
-    : materiaPrimaSchema;
+    // ✅ CORRECCIÓN: se aplica trim() aquí y se usa formularioLimpio en todo
+    const formularioLimpio = {
+      ...formulario,
+      nombre:      formulario.nombre.trim(),
+      abreviacion: formulario.abreviacion.trim(),
+    };
 
-  const result = schemaValidar.safeParse(formulario);
+    const schemaValidar =
+      editando && loteInicialUsado
+        ? materiaPrimaSchema.omit({ stock_inicial: true })
+        : materiaPrimaSchema;
 
-  if (!result.success) {
-    const erroresForm = {};
-    result.error.issues.forEach((err) => {
-      erroresForm[err.path[0]] = err.message;
+    const result = schemaValidar.safeParse(formularioLimpio);
+
+    if (!result.success) {
+      const erroresForm = {};
+      result.error.issues.forEach((err) => { erroresForm[err.path[0]] = err.message; });
+      setErrores(erroresForm);
+      toast.error("Corrige los campos marcados en el formulario");
+      return;
+    }
+
+    // Verificar duplicados
+    const duplicado = materias.find((m) => {
+      if (editando && m.id_materia === editando.id_materia) return false;
+      return (
+        m.nombre.toLowerCase()       === formularioLimpio.nombre.toLowerCase()      ||
+        m.codigo                     === formularioLimpio.codigo                     ||
+        m.abreviacion?.toLowerCase() === formularioLimpio.abreviacion.toLowerCase()
+      );
     });
-    setErrores(erroresForm);
-    return;
-  }
 
-  // Duplicados — excluye el registro actual al editar
-  const duplicado = materias.find((m) => {
-    if (editando && m.id_materia === editando.id_materia) return false;
-    return (
-      m.nombre.toLowerCase() === formulario.nombre.toLowerCase() ||
-      m.codigo === formulario.codigo ||
-      m.abreviacion?.toLowerCase() === formulario.abreviacion.toLowerCase()
-    );
-  });
+    if (duplicado) {
+      const erroresDup = {};
+      if (duplicado.nombre.toLowerCase() === formularioLimpio.nombre.toLowerCase())
+        erroresDup.nombre      = "Ya existe una materia prima con este nombre";
+      if (duplicado.codigo === formularioLimpio.codigo)
+        erroresDup.codigo      = "Ya existe una materia prima con este código";
+      if (duplicado.abreviacion?.toLowerCase() === formularioLimpio.abreviacion.toLowerCase())
+        erroresDup.abreviacion = "Ya existe una materia prima con esta abreviación";
+      setErrores(erroresDup);
+      toast.error("Ya existe una materia prima con esos datos");
+      return;
+    }
 
-  if (duplicado) {
-    const erroresDup = {};
-    if (duplicado.nombre.toLowerCase() === formulario.nombre.toLowerCase())
-      erroresDup.nombre = "Ya existe una materia prima con este nombre";
-    if (duplicado.codigo === formulario.codigo)
-      erroresDup.codigo = "Ya existe una materia prima con este código";
-    if (duplicado.abreviacion?.toLowerCase() === formulario.abreviacion.toLowerCase())
-      erroresDup.abreviacion = "Ya existe una materia prima con esta abreviación";
-    setErrores(erroresDup);
-    return;
-  }
-
-  setGuardando(true);
-  try {
-    const url    = editando ? `${API}/${editando.id_materia}` : API;
-    const method = editando ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...formulario,
-        stock_min:            parseFloat(formulario.stock_min) || 0,
-        stock_inicial:        parseFloat(formulario.stock_inicial) || 0,
-        id_categoria_materia: parseInt(formulario.id_categoria_materia),
-        id_usuario:           user.id_usuario,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { toast.error(data.message || "Error al guardar"); return; }
-    toast.success(editando ? "Materia prima actualizada" : "Materia prima creada");
-    cerrarModal();
-    cargarMaterias();
-  } catch {
-    toast.error("Error de conexión");
-  } finally {
-    setGuardando(false);
-  }
-};
-
-  // ── Inhabilitar / Habilitar ───────────────────────────────────────────────
-  const solicitarAccion = async (materia, accion) => {
-  if (accion === "inhabilitar") {
-    // Verificar lotes activos
-    let lotesActivos = 0;
+    setGuardando(true);
     try {
-      const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
-      const data = await res.json();
-      lotesActivos = Array.isArray(data)
-        ? data.filter(l => l.estado !== "agotado" && Number(l.stock_restante) > 0).length
-        : 0;
-    } catch { /* si falla, continúa sin la info */ }
+      const url    = editando ? `${API}/${editando.id_materia}` : API;
+      const method = editando ? "PUT" : "POST";
 
-    setConfirmData({
-      materia,
-      accion,
-      tieneStockComprometido: Number(materia.stockComprometido) > 0,
-      lotesActivos,
-    });
-  } else {
-    setConfirmData({ materia, accion, tieneStockComprometido: false, lotesActivos: 0 });
-  }
-  setConfirmOpen(true);
-};
+      // ✅ CORRECCIÓN: se envía formularioLimpio (con trim aplicado) no formulario
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formularioLimpio,
+          stock_min:            parseFloat(formularioLimpio.stock_min)     || 0,
+          stock_inicial:        parseFloat(formularioLimpio.stock_inicial) || 0,
+          id_categoria_materia: parseInt(formularioLimpio.id_categoria_materia),
+          id_usuario:           user.id_usuario,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.message || "Error al guardar"); return; }
+      toast.success(editando ? "Materia prima actualizada" : "Materia prima creada");
+      cerrarModal();
+      cargarMaterias();
+    } catch { toast.error("Error de conexión"); }
+    finally  { setGuardando(false); }
+  };
+
+  // ─── Inhabilitar / Habilitar ──────────────────────────────────────────────
+  const solicitarAccion = async (materia, accion) => {
+    if (accion === "inhabilitar") {
+      let lotesActivos = 0;
+      try {
+        const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
+        const data = await res.json();
+        lotesActivos = Array.isArray(data)
+          ? data.filter((l) => l.estado !== "agotado" && Number(l.stock_restante) > 0).length
+          : 0;
+      } catch { /* continúa */ }
+      setConfirmData({ materia, accion, tieneStockComprometido: Number(materia.stockComprometido) > 0, lotesActivos });
+    } else {
+      setConfirmData({ materia, accion, tieneStockComprometido: false, lotesActivos: 0 });
+    }
+    setConfirmOpen(true);
+  };
 
   const confirmarAccion = async () => {
     const { materia, accion } = confirmData;
     try {
-      const url    = accion === "inhabilitar"
-        ? `${API}/${materia.id_materia}`
-        : `${API}/${materia.id_materia}/habilitar`;
+      const url    = accion === "inhabilitar" ? `${API}/${materia.id_materia}` : `${API}/${materia.id_materia}/habilitar`;
       const method = accion === "inhabilitar" ? "DELETE" : "PATCH";
       const res    = await fetch(url, { method });
       const data   = await res.json();
       if (!res.ok) { toast.error(data.message || "Error"); return; }
-      toast.success(accion === "inhabilitar"
-        ? `${materia.nombre} inhabilitada correctamente`
-        : `${materia.nombre} habilitada correctamente`
-      );
+      toast.success(accion === "inhabilitar" ? `${materia.nombre} inhabilitada correctamente` : `${materia.nombre} habilitada correctamente`);
       cargarMaterias();
-    } catch {
-      toast.error("Error de conexión");
-    } finally {
-      setConfirmOpen(false);
-      setConfirmData(null);
-    }
+    } catch { toast.error("Error de conexión"); }
+    finally  { setConfirmOpen(false); setConfirmData(null); }
   };
 
-  // ── Ver lotes ─────────────────────────────────────────────────────────────
   const verLotes = async (materia) => {
-    setMateriaLotes(materia);
-    setModalLotes(true);
-    setCargandoLotes(true);
+    setMateriaLotes(materia); setModalLotes(true); setCargandoLotes(true);
     try {
       const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
       const data = await res.json();
       setLotes(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error("Error al cargar lotes");
-    } finally {
-      setCargandoLotes(false);
-    }
+    } catch { toast.error("Error al cargar lotes"); }
+    finally  { setCargandoLotes(false); }
   };
 
   const cerrarLotes = () => { setModalLotes(false); setMateriaLotes(null); setLotes([]); };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -339,43 +365,33 @@ export default function Inventario() {
         </div>
       </div>
 
-      {/* Filtro Activas / Inhabilitadas */}
+      {/* Filtro habilitados/inhabilitados */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">Filtrar por:</span>
           <div className="flex gap-2">
             <button onClick={() => setFiltroEstado("Activo")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroEstado === "Activo"
-                  ? "bg-green-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroEstado === "Activo" ? "bg-green-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
               <span className="flex items-center gap-2">
-                <Check className="w-4 h-4" />
-                Habilitados ({materias.filter(m => m.estado === "Activo").length})
+                <Check className="w-4 h-4" /> Habilitados ({materias.filter((m) => m.estado === "Activo").length})
               </span>
             </button>
             <button onClick={() => setFiltroEstado("Inhabilitado")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroEstado === "Inhabilitado"
-                  ? "bg-red-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroEstado === "Inhabilitado" ? "bg-red-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
               <span className="flex items-center gap-2">
-                <Ban className="w-4 h-4" />
-                Inhabilitados ({materias.filter(m => m.estado === "Inhabilitado").length})
+                <Ban className="w-4 h-4" /> Inhabilitados ({materias.filter((m) => m.estado === "Inhabilitado").length})
               </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Búsqueda + Filtro stock + Filtro categorías */}
+      {/* Búsqueda + Filtro stock + Categoría */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por nombre..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
@@ -387,9 +403,7 @@ export default function Inventario() {
               { val: "Critico",    label: "Crítico",    cls: "bg-red-600"    },
             ].map(({ val, label, cls }) => (
               <button key={val} onClick={() => setFiltroStock(val)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filtroStock === val ? `${cls} text-white` : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}>
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filtroStock === val ? `${cls} text-white` : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
                 {label}
               </button>
             ))}
@@ -411,16 +425,13 @@ export default function Inventario() {
             {mostrarCats && (
               <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 max-h-60 overflow-y-auto">
-                  {categorias.map(cat => (
+                  {categorias.map((cat) => (
                     <label key={cat.id_categoria_materia}
                       className="flex items-center cursor-pointer hover:bg-white px-2 py-1.5 rounded transition-colors">
-                      <input type="checkbox"
-                        checked={catsFiltro.has(cat.nombre_categoria_materia)}
+                      <input type="checkbox" checked={catsFiltro.has(cat.nombre_categoria_materia)}
                         onChange={() => {
                           const s = new Set(catsFiltro);
-                          s.has(cat.nombre_categoria_materia)
-                            ? s.delete(cat.nombre_categoria_materia)
-                            : s.add(cat.nombre_categoria_materia);
+                          s.has(cat.nombre_categoria_materia) ? s.delete(cat.nombre_categoria_materia) : s.add(cat.nombre_categoria_materia);
                           setCatsFiltro(s);
                         }}
                         className="mr-3 w-4 h-4 text-blue-600 border-gray-300 rounded" />
@@ -448,7 +459,7 @@ export default function Inventario() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Código","Nombre","Stock Actual","Stock Mínimo","Stock Comprometido","Stock Disponible","Estado","Acciones"].map(col => (
+                {["Código","Nombre","Stock Actual","Stock Mínimo","Stock Comprometido","Stock Disponible","Estado","Acciones"].map((col) => (
                   <th key={col}
                     className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${col === "Acciones" ? "text-right" : "text-left"}`}>
                     {col}
@@ -458,18 +469,14 @@ export default function Inventario() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {cargando ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">Cargando...</td>
-                </tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
               ) : materiasFiltradas.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
-                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-500">No se encontraron materias primas</p>
-                  </td>
-                </tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center">
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500">No se encontraron materias primas</p>
+                </td></tr>
               ) : (
-                materiasFiltradas.map(m => (
+                materiasFiltradas.map((m) => (
                   <tr key={m.id_materia} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <p className="font-bold text-blue-600">{m.codigo || "N/A"}</p>
@@ -501,7 +508,7 @@ export default function Inventario() {
                       <p className="font-medium text-blue-600">{Number(m.stockDisponible).toFixed(2)} kg</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <StatusBadge estado={m.estadoStock} />
+                      <StatusBadge stockActual={m.stockActual} stockMinimo={m.stockMinimo} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -535,7 +542,7 @@ export default function Inventario() {
       {/* ── Modal Crear / Editar ───────────────────────────────────────────── */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="font-bold text-gray-900 text-xl">
                 {editando ? "Editar Materia Prima" : "Nueva Materia Prima"}
@@ -544,111 +551,173 @@ export default function Inventario() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+
+              {/* ── Nombre ── */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre *</label>
-                <input type="text" required
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Nombre *</label>
+                  {/* ✅ Contador visible para el usuario */}
+                  <CharCount value={formulario.nombre} max={LIMITES.nombre} />
+                </div>
+                <input
+                  type="text"
+                  required
+                  // ✅ maxLength alineado con VARCHAR(80) de la BD
+                  maxLength={LIMITES.nombre}
                   value={formulario.nombre}
-                  onChange={e => setFormulario({ ...formulario, nombre: e.target.value })}
+                  onChange={(e) => setField("nombre", e.target.value)}
                   placeholder="Ej: Dióxido de Titanio"
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errores.nombre ? "border-red-500" : "border-gray-300"
-                  }`} />
-                {errores.nombre && <p className="text-red-500 text-sm mt-1">{errores.nombre}</p>}
+                    errores.nombre ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errores.nombre && (
+                  <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.nombre}
+                  </p>
+                )}
               </div>
+
+              {/* ── Código ── */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Código *</label>
-                <input type="text" required maxLength={10}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Código *</label>
+                  <CharCount value={formulario.codigo} max={LIMITES.codigo_max} />
+                </div>
+                <input
+                  type="text"
+                  required
+                  maxLength={LIMITES.codigo_max}
                   value={formulario.codigo}
-                  onChange={e => setFormulario({ ...formulario, codigo: e.target.value.replace(/\D/g, "") })}
-                  placeholder="Ej: 004"
+                  onChange={(e) => setField("codigo", e.target.value.replace(/\D/g, ""))}
+                  placeholder="Ej: 61902511179"
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errores.codigo ? "border-red-500" : "border-gray-300"
-                  }`} />
-                {errores.codigo && <p className="text-red-500 text-sm mt-1">{errores.codigo}</p>}
-                <p className="text-xs text-gray-500 mt-1">Código numérico único</p>
+                    errores.codigo ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errores.codigo && (
+                  <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.codigo}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">Código numérico único — máximo {LIMITES.codigo_max} dígitos</p>
               </div>
+
+              {/* ── Abreviación ── */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Abreviación * (máx. 3 caracteres)</label>
-                <input type="text" required maxLength={3}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Abreviación * (máx. {LIMITES.abreviacion} caracteres)
+                  </label>
+                  <CharCount value={formulario.abreviacion} max={LIMITES.abreviacion} />
+                </div>
+                <input
+                  type="text"
+                  required
+                  maxLength={LIMITES.abreviacion}
                   value={formulario.abreviacion}
-                  onChange={e => setFormulario({ ...formulario, abreviacion: e.target.value.toUpperCase() })}
+                  onChange={(e) => setField("abreviacion", e.target.value.toUpperCase())}
                   placeholder="Ej: DT"
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errores.abreviacion ? "border-red-500" : "border-gray-300"
-                  }`} />
-                {errores.abreviacion && <p className="text-red-500 text-sm mt-1">{errores.abreviacion}</p>}
-                <p className="text-xs text-gray-500 mt-1">Se usa para generar códigos de lote</p>
+                    errores.abreviacion ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errores.abreviacion && (
+                  <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.abreviacion}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">Se usa para generar códigos de lote</p>
               </div>
+
+              {/* ── Stock Inicial ── */}
               {(!editando || !loteInicialUsado) && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Inicial (kg) *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Inicial (kg) *</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0.01"
+                    // ✅ max alineado con DECIMAL(12,2)
+                    max={LIMITES.stock_max}
                     required
                     value={formulario.stock_inicial}
-                    onChange={e => setFormulario({ ...formulario, stock_inicial: e.target.value })}
-                    placeholder="Ej: 350"
+                    onChange={(e) => setField("stock_inicial", e.target.value)}
+                    placeholder="Ej: 350.00"
                     className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errores.stock_inicial ? "border-red-500 focus:ring-red-500" : "border-gray-300"
                     }`}
                   />
                   {errores.stock_inicial && (
-                    <p className="text-red-500 text-sm mt-1">{errores.stock_inicial}</p>
+                    <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_inicial}
+                    </p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    Se creará automáticamente un lote con esta cantidad
+                  <p className="text-xs text-gray-400 mt-1">
+                    Hasta 2 decimales — máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg. Se creará un lote con esta cantidad.
                   </p>
                 </div>
               )}
+
+              {/* ── Stock Mínimo ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock Mínimo (kg) *</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
+                  max={LIMITES.stock_max}
                   required
                   value={formulario.stock_min}
-                  onChange={e => setFormulario({ ...formulario, stock_min: e.target.value })}
-                  placeholder="Ej: 100"
+                  onChange={(e) => setField("stock_min", e.target.value)}
+                  placeholder="Ej: 100.00"
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errores.stock_min ? "border-red-500 focus:ring-red-500" : "border-gray-300"
                   }`}
                 />
                 {errores.stock_min && (
-                  <p className="text-red-500 text-sm mt-1">{errores.stock_min}</p>
+                  <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_min}
+                  </p>
                 )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Hasta 2 decimales — máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg
+                </p>
               </div>
+
+              {/* ── Categoría ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
                 <select
                   required
                   value={formulario.id_categoria_materia}
-                  onChange={e => setFormulario({ ...formulario, id_categoria_materia: e.target.value })}
+                  onChange={(e) => setField("id_categoria_materia", e.target.value)}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errores.id_categoria_materia ? "border-red-500 focus:ring-red-500" : "border-gray-300"
                   }`}
                 >
                   <option value="">Seleccione una categoría...</option>
-                  {categorias.map(c => (
+                  {categorias.map((c) => (
                     <option key={c.id_categoria_materia} value={c.id_categoria_materia}>
                       {c.nombre_categoria_materia}
                     </option>
                   ))}
                 </select>
                 {errores.id_categoria_materia && (
-                  <p className="text-red-500 text-sm mt-1">{errores.id_categoria_materia}</p>
+                  <p className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.id_categoria_materia}
+                  </p>
                 )}
               </div>
+
               {editando && (
                 <p className="text-xs text-gray-500 bg-gray-50 rounded p-2 border border-gray-200">
                   ℹ️ El stock actual solo se modifica mediante movimientos de entrada/salida o recepciones de pedidos.
                 </p>
               )}
+
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={cerrarModal}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
@@ -688,7 +757,7 @@ export default function Inventario() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {lotes.map(lote => {
+                  {lotes.map((lote) => {
                     const agotado    = lote.estado === "agotado" || Number(lote.stock_restante) === 0;
                     const inicial    = Number(lote.stock_inicial);
                     const restante   = Number(lote.stock_restante);
@@ -765,79 +834,59 @@ export default function Inventario() {
 
       {/* ── Confirm Dialog ─────────────────────────────────────────────────── */}
       {confirmOpen && confirmData && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-      <div className="flex items-center gap-3 mb-4">
-        {confirmData.accion === "inhabilitar"
-          ? <Ban className="w-8 h-8 text-red-500" />
-          : <Check className="w-8 h-8 text-green-500" />
-        }
-        <h2 className="font-bold text-gray-900 text-lg">
-          {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} materia prima
-        </h2>
-      </div>
-
-      <p className="text-gray-600 mb-4">
-        ¿Estás seguro de que deseas {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"}{" "}
-        <span className="font-semibold text-gray-900">{confirmData.materia.nombre}</span>?
-      </p>
-
-      {/* Advertencia stock comprometido */}
-      {confirmData.tieneStockComprometido && (
-        <div className="flex gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Stock comprometido activo</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              Esta materia prima tiene{" "}
-              <span className="font-semibold">
-                {Number(confirmData.materia.stockComprometido).toFixed(2)} kg
-              </span>{" "}
-              comprometidos en órdenes de producción pendientes o en proceso.
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              {confirmData.accion === "inhabilitar"
+                ? <Ban className="w-8 h-8 text-red-500" />
+                : <Check className="w-8 h-8 text-green-500" />}
+              <h2 className="font-bold text-gray-900 text-lg">
+                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} materia prima
+              </h2>
+            </div>
+            <p className="text-gray-600 mb-4">
+              ¿Estás seguro de que deseas {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"}{" "}
+              <span className="font-semibold text-gray-900">{confirmData.materia.nombre}</span>?
             </p>
+            {confirmData.tieneStockComprometido && (
+              <div className="flex gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Stock comprometido activo</p>
+                  <p className="text-sm text-amber-700 mt-0.5">
+                    Tiene <span className="font-semibold">{Number(confirmData.materia.stockComprometido).toFixed(2)} kg</span>{" "}
+                    comprometidos en órdenes pendientes o en proceso.
+                  </p>
+                </div>
+              </div>
+            )}
+            {confirmData.lotesActivos > 0 && (
+              <div className="flex gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
+                <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">Lotes con stock disponible</p>
+                  <p className="text-sm text-red-700 mt-0.5">
+                    Tiene <span className="font-semibold">{confirmData.lotesActivos} lote{confirmData.lotesActivos !== 1 ? "s" : ""}</span>{" "}
+                    activo{confirmData.lotesActivos !== 1 ? "s" : ""} con stock sin agotar. Al inhabilitar, ese stock quedará inaccesible.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={confirmarAccion}
+                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                  confirmData.accion === "inhabilitar" ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+                }`}>
+                {confirmData.accion === "inhabilitar" ? "Inhabilitar de todas formas" : "Habilitar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Advertencia lotes activos */}
-      {confirmData.lotesActivos > 0 && (
-          <div className="flex gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
-            <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-red-800">Lotes con stock disponible</p>
-              <p className="text-sm text-red-700 mt-0.5">
-                Tiene{" "}
-                <span className="font-semibold">
-                  {confirmData.lotesActivos} lote{confirmData.lotesActivos !== 1 ? "s" : ""}
-                </span>{" "}
-                activo{confirmData.lotesActivos !== 1 ? "s" : ""} con stock sin agotar. Al inhabilitar, ese stock quedará inaccesible.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={confirmarAccion}
-            className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
-              confirmData.accion === "inhabilitar"
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-green-600 hover:bg-green-700"
-            }`}
-          >
-            {confirmData.accion === "inhabilitar" ? "Inhabilitar de todas formas" : "Habilitar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
-
     </div>
   );
 }

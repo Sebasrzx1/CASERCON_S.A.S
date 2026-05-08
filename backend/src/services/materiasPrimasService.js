@@ -1,21 +1,30 @@
 const materiasPrimasModel = require("../models/materiasPrimasModel");
 
-// Lógica de negocio: calcula el estado de stock de una materia prima
+// ─── Lógica de estados ────────────────────────────────────────────────────────
+// Crítico   : stockActual <= stock_min
+// Bajo      : stockActual <= stock_min * 2
+// Suficiente: stockActual >  stock_min * 2
 const calcularEstadoStock = (stockActual, stockMinimo) => {
-  if (stockActual <= stockMinimo * 0.5) return "Critico"; // ≤ 50 % del mínimo
-  if (stockActual <= stockMinimo) return "Bajo"; // entre 50 % y 100 %
+  if (stockActual <= stockMinimo)      return "Critico";
+  if (stockActual <= stockMinimo * 2)  return "Bajo";
   return "Suficiente";
 };
 
 const materiasPrimasService = {
-  // ─── Ya existente: usada en Dashboard ─────────────────────────────────────
+
+  // ─── Usada en Dashboard e Inventario ──────────────────────────────────────
   async getAllMaterias() {
     try {
       const materias = await materiasPrimasModel.findAll();
 
+      // estadoStock se calcula aquí y se adjunta al objeto
+      // El frontend también lo recalcula localmente para filtros/estadísticas
       return materias.map((m) => ({
         ...m,
-        estadoStock: calcularEstadoStock(m.stockActual, m.stockMinimo),
+        estadoStock: calcularEstadoStock(
+          parseFloat(m.stockActual),
+          parseFloat(m.stockMinimo)
+        ),
       }));
     } catch (error) {
       console.error("Error en service getAllMaterias:", error);
@@ -38,7 +47,6 @@ const materiasPrimasService = {
     try {
       const materia = await materiasPrimasModel.findById(id);
       if (!materia) throw { status: 404, msg: "Materia prima no encontrada" };
-
       return await materiasPrimasModel.findLotesByMateria(id);
     } catch (error) {
       console.error("Error en service getLotesByMateria:", error);
@@ -49,7 +57,7 @@ const materiasPrimasService = {
   // ─── Crear ─────────────────────────────────────────────────────────────────
   async createMateria(body) {
     const db = require("../config/conexion_db");
-    const conn = await db.getConnection(); // transacción para que todo o nada
+    const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
 
@@ -79,15 +87,15 @@ const materiasPrimasService = {
       // 1. Crear la materia prima
       const [mpResult] = await conn.execute(
         `INSERT INTO materias_primas (nombre, codigo, abreviacion, id_categoria_materia, stock_min)
-      VALUES (?, ?, ?, ?, ?)`,
-        [nombre, codigo, abreviacion, id_categoria_materia, stock_min ?? 0],
+        VALUES (?, ?, ?, ?, ?)`,
+        [nombre, codigo, abreviacion, id_categoria_materia, stock_min ?? 0]
       );
       const id_materia = mpResult.insertId;
 
       // 2. Generar código de lote
       const fecha = new Date();
-      const dd = String(fecha.getDate()).padStart(2, "0");
-      const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+      const dd   = String(fecha.getDate()).padStart(2, "0");
+      const mm   = String(fecha.getMonth() + 1).padStart(2, "0");
       const yyyy = fecha.getFullYear();
       const codigo_lote = `${abreviacion}-001-${dd}${mm}${yyyy}`;
 
@@ -95,8 +103,8 @@ const materiasPrimasService = {
       const [loteResult] = await conn.execute(
         `INSERT INTO lotes
           (id_materia, numero_lote, id_detalle_pedido, codigo_lote, stock_inicial, stock_restante, estado)
-      VALUES (?, 1, NULL, ?, ?, ?, 'activo')`,
-        [id_materia, codigo_lote, stock_inicial, stock_inicial],
+        VALUES (?, 1, NULL, ?, ?, ?, 'activo')`,
+        [id_materia, codigo_lote, stock_inicial, stock_inicial]
       );
       const id_lote = loteResult.insertId;
 
@@ -104,15 +112,12 @@ const materiasPrimasService = {
       await conn.execute(
         `INSERT INTO movimientos_inventario
           (id_materia, id_lote, id_usuario, tipo_movimiento, cantidad, observacion)
-      VALUES (?, ?, ?, 'Entrada', ?, 'Stock inicial al registrar materia prima')`,
-        [id_materia, id_lote, id_usuario, stock_inicial],
+        VALUES (?, ?, ?, 'Entrada', ?, 'Stock inicial al registrar materia prima')`,
+        [id_materia, id_lote, id_usuario, stock_inicial]
       );
 
       await conn.commit();
-      return {
-        id_materia,
-        msg: "Materia prima creada correctamente con stock inicial",
-      };
+      return { id_materia, msg: "Materia prima creada correctamente con stock inicial" };
     } catch (error) {
       await conn.rollback();
       console.error("Error en service createMateria:", error);
@@ -126,7 +131,6 @@ const materiasPrimasService = {
   async updateMateria(id, body) {
     const db = require("../config/conexion_db");
     const conn = await db.getConnection();
-
     try {
       await conn.beginTransaction();
 
@@ -146,7 +150,7 @@ const materiasPrimasService = {
         throw { status: 400, msg: "Faltan campos requeridos" };
       }
 
-      // actualizar metadata
+      // Actualizar metadata
       await materiasPrimasModel.update(id, {
         nombre,
         codigo,
@@ -155,18 +159,15 @@ const materiasPrimasService = {
         stock_min,
       });
 
-      // ─── lógica del stock inicial ─────────────────────
+      // ─── Lógica del stock inicial ─────────────────────────────────────────
       if (stock_inicial !== undefined) {
         const loteInicial = await materiasPrimasModel.findLoteInicial(id);
 
         if (!loteInicial) {
-          throw {
-            status: 400,
-            msg: "No existe lote inicial para esta materia",
-          };
+          throw { status: 400, msg: "No existe lote inicial para esta materia" };
         }
 
-        // si se usó en producción
+        // Si el lote ya fue usado en producción no se puede modificar
         if (loteInicial.stock_restante !== loteInicial.stock_inicial) {
           throw {
             status: 400,
@@ -174,15 +175,14 @@ const materiasPrimasService = {
           };
         }
 
-        // actualizar lote
+        // Actualizar ambos campos del lote para mantenerlos sincronizados
         await materiasPrimasModel.updateStockLote(
           loteInicial.id_lote,
-          stock_inicial,
+          stock_inicial
         );
       }
 
       await conn.commit();
-
       return { msg: "Materia prima actualizada correctamente" };
     } catch (error) {
       await conn.rollback();
@@ -193,7 +193,7 @@ const materiasPrimasService = {
     }
   },
 
-  // Reemplaza deleteMateria por esto:
+  // ─── Inhabilitar ───────────────────────────────────────────────────────────
   async deleteMateria(id) {
     try {
       const materia = await materiasPrimasModel.findById(id);
@@ -209,7 +209,7 @@ const materiasPrimasService = {
     }
   },
 
-  // Agrega esta función nueva:
+  // ─── Habilitar ─────────────────────────────────────────────────────────────
   async habilitarMateria(id) {
     try {
       const materia = await materiasPrimasModel.findById(id);
