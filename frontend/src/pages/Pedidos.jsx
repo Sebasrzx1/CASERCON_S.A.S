@@ -11,9 +11,7 @@ const API = "http://localhost:3000/api/pedidos";
 
 export default function PedidosPage() {
   const STOCK_MAX = 99999.99;
-  const { isAdministrador, user } = useAuth();
-  const token   = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
+  const { isAdministrador, user, fetchConAuth } = useAuth();
 
   const [pedidos, setPedidos]         = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -244,9 +242,8 @@ export default function PedidosPage() {
   try {
     const url    = pedidoEditando ? `${API}/${pedidoEditando.id_pedido}` : API;
     const method = pedidoEditando ? "PUT" : "POST";
-    const res    = await fetch(url, {
+    const res = await fetchConAuth(url, {
       method,
-      headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -643,96 +640,25 @@ export default function PedidosPage() {
                   </div>
                 )}
 
-                {/* Items */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">Materias Primas *</label>
-                    <button type="button" onClick={agregarItem}
-                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
-                      <Plus className="w-4 h-4" /> Agregar item
-                    </button>
-                  </div>
-
-                  {errores.items && (
-                    <p className="text-red-500 text-sm mb-2 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />{errores.items}
-                    </p>
-                  )}
-
-                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                    {formulario.items.map((item, idx) => {
-                      const cant     = parseFloat(item.cantidad_solicitada) || 0;
-                      const pct      = cant / STOCK_MAX;
-                      const cantCls  = pct >= 1
-                        ? "text-red-500 font-semibold"
-                        : pct >= 0.85 ? "text-amber-500" : "text-gray-400";
-
-                      return (
-                        <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-                          {/* Selector materia prima */}
-                          <div className="flex gap-2">
-                            <select
-                              value={item.id_materia}
-                              onChange={(e) => actualizarItem(idx, "id_materia", e.target.value)}
-                              className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                                errores[`item_materia_${idx}`] ? "border-red-500 bg-red-50" : "border-gray-300 bg-white"
-                              }`}>
-                              <option value="">Seleccione materia prima</option>
-                              {materias.map((m) => (
-                                <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
-                              ))}
-                            </select>
-                            {formulario.items.length > 1 && (
-                              <button type="button" onClick={() => eliminarItem(idx)}
-                                className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                          {errores[`item_materia_${idx}`] && (
-                            <p className="text-red-500 text-xs flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                              {errores[`item_materia_${idx}`]}
-                            </p>
-                          )}
-
-                          {/* Cantidad */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-xs font-medium text-gray-600">Cantidad (KG) *</label>
-                              {item.cantidad_solicitada !== "" && (
-                                <span className={`text-xs ${cantCls}`}>
-                                  {cant.toLocaleString("es-CO", { maximumFractionDigits: 2 })} / {STOCK_MAX.toLocaleString("es-CO")} KG
-                                </span>
-                              )}
-                            </div>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              max={STOCK_MAX}
-                              value={item.cantidad_solicitada}
-                              onChange={(e) => actualizarItem(idx, "cantidad_solicitada", e.target.value)}
-                              placeholder="Ej: 350.00"
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                                errores[`item_cantidad_${idx}`] ? "border-red-500 bg-red-50 focus:ring-red-500" : "border-gray-300"
-                              }`}
-                            />
-                            {errores[`item_cantidad_${idx}`] && (
-                              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                                {errores[`item_cantidad_${idx}`]}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              Hasta 2 decimales — máx. {STOCK_MAX.toLocaleString("es-CO")} KG
-                            </p>
-                          </div>
+              {/* Items — solo lectura */}
+              {(pedido.items || []).filter(Boolean).length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Materias Primas:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {(pedido.items || []).filter(Boolean).map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-700">{item.nombre_materia}</span>
                         </div>
-                      );
-                    })}
+                        <span className="text-sm font-bold text-gray-900">
+                          {parseFloat(item.cantidad_solicitada).toFixed(2)} KG
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
               </div>
             );
           })
