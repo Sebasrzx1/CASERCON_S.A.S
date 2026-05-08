@@ -3,7 +3,7 @@ const router = express.Router();
 
 //Middlewares
 const { protect, restricTo } = require("../middlewares/authMiddleware");
-const validarUsuarioActivo = require("../middlewares/validarUsuarioActivo");
+const  checkUserActivo = require("../middlewares/checkUserActivo");
 
 const {
   getAllUsuarios,
@@ -32,7 +32,7 @@ router.put("/:id", updateUsuario);
 router.delete(
   "/:id",
   protect,
-  validarUsuarioActivo,
+  checkUserActivo,
   restricTo("administrador"),
   deleteUsuario,
 );
@@ -41,7 +41,7 @@ router.delete(
 router.patch(
   "/:id/habilitar",
   protect,
-  validarUsuarioActivo,
+  checkUserActivo,
   restricTo("administrador"),
   habilitarUsuario,
 );

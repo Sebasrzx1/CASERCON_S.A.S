@@ -18,32 +18,33 @@ export default function PedidosPage() {
   const [pedidos, setPedidos]         = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [materias, setMaterias]       = useState([]);
-  const [loading, setLoading]         = useState(false);
 
   const [filtroEstado, setFiltroEstado] = useState("pendiente");
   const [fechaInicio, setFechaInicio]   = useState("");
   const [fechaFin, setFechaFin]         = useState("");
   const [busqueda, setBusqueda]         = useState("");
 
+  const [loading, setLoading]               = useState(false);
   const [modalForm, setModalForm]           = useState(false);
   const [modalRecibir, setModalRecibir]     = useState(false);
-  const [modalCancelar, setModalCancelar]   = useState(false); // cancelar = eliminar físico
+  const [modalCancelar, setModalCancelar]   = useState(false);
   const [pedidoEditando, setPedidoEditando] = useState(null);
   const [pedidoActivo, setPedidoActivo]     = useState(null);
+  const [errores, setErrores]               = useState({});
+  const [itemsDevolucion, setItemsDevolucion] = useState([]);
 
   const formularioVacio = {
     id_proveedor: "", fecha_entrega: "", observaciones: "",
     items: [{ id_materia: "", cantidad_solicitada: "" }],
   };
-  const [formulario, setFormulario]     = useState(formularioVacio);
-  const [errores, setErrores]           = useState({});
-  const [itemsDevolucion, setItemsDevolucion] = useState([]);
+  const [formulario, setFormulario] = useState(formularioVacio);
 
   // ── Fetch ────────────────────────────────────────────────────────
   const fetchPedidos = async () => {
     try {
       setLoading(true);
-      const res  = await fetch(API, { headers });
+      const res = await fetchConAuth(API);
+      if (!res) return;
       const data = await res.json();
       setPedidos(Array.isArray(data.data) ? data.data : []);
     } catch (e) { console.error(e); }
@@ -53,13 +54,14 @@ export default function PedidosPage() {
   const fetchCatalogos = async () => {
     try {
       const [rProv, rMat] = await Promise.all([
-        fetch(`${API}/proveedores`, { headers }),
-        fetch(`${API}/materias`,    { headers }),
+        fetchConAuth(`${API}/proveedores`),
+        fetchConAuth(`${API}/materias`),
       ]);
+      if (!rProv || !rMat) return;
       const dProv = await rProv.json();
       const dMat  = await rMat.json();
       setProveedores(Array.isArray(dProv.data) ? dProv.data : []);
-      setMaterias(Array.isArray(dMat.data)  ? dMat.data  : []);
+      setMaterias(Array.isArray(dMat.data) ? dMat.data : []);
     } catch (e) { console.error(e); }
   };
 
@@ -72,22 +74,22 @@ export default function PedidosPage() {
 
   // ── Estadísticas ─────────────────────────────────────────────────
   const stats = useMemo(() => ({
-    total:      pedidos.filter(p => p.tipo_pedido === "compra").length,
-    pendientes: pedidos.filter(p => p.tipo_pedido === "compra" && p.estado === "pendiente").length,
-    recibidos:  pedidos.filter(p => p.tipo_pedido === "compra" && p.estado === "recibido").length,
+    total:      pedidos.filter((p) => p.tipo_pedido === "compra").length,
+    pendientes: pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "pendiente").length,
+    recibidos:  pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "recibido").length,
   }), [pedidos]);
 
   // ── Filtrado ─────────────────────────────────────────────────────
   const pedidosFiltrados = useMemo(() => {
-    const compras      = pedidos.filter(p => p.tipo_pedido === "compra");
-    const devoluciones = pedidos.filter(p => p.tipo_pedido === "devolucion");
+    const compras      = pedidos.filter((p) => p.tipo_pedido === "compra");
+    const devoluciones = pedidos.filter((p) => p.tipo_pedido === "devolucion");
 
     let res = filtroEstado === "devolucion" ? devoluciones
-            : compras.filter(p => p.estado === filtroEstado);
+            : compras.filter((p) => p.estado === filtroEstado);
 
     if (busqueda.trim()) {
       const term = busqueda.toLowerCase();
-      res = res.filter(p =>
+      res = res.filter((p) =>
         p.no_orden_compra?.toLowerCase().includes(term) ||
         p.nombre_proveedor?.toLowerCase().includes(term) ||
         p.nombre_empresa?.toLowerCase().includes(term) ||
@@ -97,16 +99,16 @@ export default function PedidosPage() {
 
     if (filtroEstado !== "pendiente" && filtroEstado !== "devolucion") {
       if (fechaInicio) {
-        const ini = new Date(fechaInicio); ini.setHours(0,0,0,0);
-        res = res.filter(p => new Date(p.fecha_creacion) >= ini);
+        const ini = new Date(fechaInicio); ini.setHours(0, 0, 0, 0);
+        res = res.filter((p) => new Date(p.fecha_creacion) >= ini);
       }
       if (fechaFin) {
-        const fin = new Date(fechaFin); fin.setHours(23,59,59,999);
-        res = res.filter(p => new Date(p.fecha_creacion) <= fin);
+        const fin = new Date(fechaFin); fin.setHours(23, 59, 59, 999);
+        res = res.filter((p) => new Date(p.fecha_creacion) <= fin);
       }
     }
 
-    return res.sort((a,b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
+    return res.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
   }, [pedidos, filtroEstado, fechaInicio, fechaFin, busqueda]);
 
   const cambiarFiltro = (valor) => {
@@ -116,17 +118,17 @@ export default function PedidosPage() {
 
   // ── Items formulario ─────────────────────────────────────────────
   const hayItemsValidos = (items) =>
-    items.some(i => i.id_materia && i.cantidad_solicitada && Number(i.cantidad_solicitada) > 0);
+    items.some((i) => i.id_materia && i.cantidad_solicitada && Number(i.cantidad_solicitada) > 0);
 
   const agregarItem = () =>
-    setFormulario(prev => ({
-      ...prev, items: [...prev.items, { id_materia: "", cantidad_solicitada: "" }]
+    setFormulario((prev) => ({
+      ...prev, items: [...prev.items, { id_materia: "", cantidad_solicitada: "" }],
     }));
 
   const eliminarItem = (idx) =>
-    setFormulario(prev => {
+    setFormulario((prev) => {
       const nuevos = prev.items.filter((_, i) => i !== idx);
-      if (hayItemsValidos(nuevos)) setErrores(e => ({ ...e, items: undefined }));
+      if (hayItemsValidos(nuevos)) setErrores((e) => ({ ...e, items: undefined }));
       return { ...prev, items: nuevos };
     });
 
@@ -164,7 +166,7 @@ export default function PedidosPage() {
       id_proveedor:  String(pedido.id_proveedor),
       fecha_entrega: pedido.fecha_entrega ? pedido.fecha_entrega.split("T")[0] : "",
       observaciones: pedido.observaciones || "",
-      items: (pedido.items || []).map(i => ({
+      items: (pedido.items || []).map((i) => ({
         id_materia:          String(i.id_materia),
         cantidad_solicitada: String(i.cantidad_solicitada),
       })),
@@ -176,7 +178,7 @@ export default function PedidosPage() {
   const abrirRecibir = (pedido) => {
     setPedidoActivo(pedido);
     setItemsDevolucion(
-      (pedido.items || []).filter(Boolean).map(i => ({
+      (pedido.items || []).filter(Boolean).map((i) => ({
         id_materia:          i.id_materia,
         nombre_materia:      i.nombre_materia,
         cantidad_solicitada: Number(i.cantidad_solicitada),
@@ -266,7 +268,7 @@ export default function PedidosPage() {
 
   // ── Devoluciones ─────────────────────────────────────────────────
   const toggleProblema = (idx) => {
-    setItemsDevolucion(prev => {
+    setItemsDevolucion((prev) => {
       const copia = [...prev];
       copia[idx].tieneProblema = !copia[idx].tieneProblema;
       if (!copia[idx].tieneProblema) {
@@ -278,7 +280,7 @@ export default function PedidosPage() {
   };
 
   const actualizarDevolucion = (idx, campo, valor) => {
-    setItemsDevolucion(prev => {
+    setItemsDevolucion((prev) => {
       const copia = [...prev];
       copia[idx] = { ...copia[idx], [campo]: valor };
       return copia;
@@ -289,38 +291,38 @@ export default function PedidosPage() {
   const confirmarRecepcion = async () => {
     if (!pedidoActivo) return;
 
-    for (const item of itemsDevolucion.filter(i => i.tieneProblema)) {
+    for (const item of itemsDevolucion.filter((i) => i.tieneProblema)) {
       if (!item.cantidad_devuelta || Number(item.cantidad_devuelta) <= 0) {
         toast.error("Cantidad inválida", {
-          description: `Ingrese la cantidad a devolver de "${item.nombre_materia}"`
+          description: `Ingrese la cantidad a devolver de "${item.nombre_materia}"`,
         }); return;
       }
       if (Number(item.cantidad_devuelta) > item.cantidad_solicitada) {
         toast.error("Cantidad excedida", {
-          description: `La cantidad devuelta de "${item.nombre_materia}" supera la pedida`
+          description: `La cantidad devuelta de "${item.nombre_materia}" supera la pedida`,
         }); return;
       }
       if (!item.observacion.trim()) {
         toast.error("Observación requerida", {
-          description: `Ingrese la observación para "${item.nombre_materia}"`
+          description: `Ingrese la observación para "${item.nombre_materia}"`,
         }); return;
       }
     }
 
     const itemsConProblema = itemsDevolucion
-      .filter(i => i.tieneProblema)
-      .map(i => ({
+      .filter((i) => i.tieneProblema)
+      .map((i) => ({
         id_materia:        i.id_materia,
         cantidad_devuelta: Number(i.cantidad_devuelta),
         observacion:       i.observacion,
       }));
 
     try {
-      const res  = await fetch(`${API}/${pedidoActivo.id_pedido}/recibir`, {
+      const res = await fetchConAuth(`${API}/${pedidoActivo.id_pedido}/recibir`, {
         method: "PUT",
-        headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ itemsDevolucion: itemsConProblema }),
       });
+      if (!res) return;
       const data = await res.json();
       if (data.status === "error") {
         toast.error("Error", { description: data.message }); return;
@@ -343,9 +345,10 @@ export default function PedidosPage() {
   const confirmarCancelar = async () => {
     if (!pedidoActivo) return;
     try {
-      const res  = await fetch(`${API}/${pedidoActivo.id_pedido}`, {
-        method: "DELETE", headers,
+      const res = await fetchConAuth(`${API}/${pedidoActivo.id_pedido}`, {
+        method: "DELETE",
       });
+      if (!res) return;
       const data = await res.json();
       if (data.status === "error") {
         toast.error("Error", { description: data.message }); return;
@@ -369,33 +372,23 @@ export default function PedidosPage() {
     const colorAccent  = esDevolucion ? "#7c3aed" : "#FDD835";
 
     const filas = (pedido.items || []).filter(Boolean).map((item, idx) => {
-      const cantDev      = parseFloat(item.cantidad_devuelta || 0);
-      const cantOrig     = parseFloat(item.cantidad_solicitada);
-      const cantIngreso  = cantOrig - cantDev;
-      const tieneDevol   = cantDev > 0;
-
+      const cantDev     = parseFloat(item.cantidad_devuelta || 0);
+      const cantOrig    = parseFloat(item.cantidad_solicitada);
+      const cantIngreso = cantOrig - cantDev;
+      const tieneDevol  = cantDev > 0;
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${idx + 1}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${item.nombre_materia}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">
-            ${cantOrig.toFixed(2)} KG
-          </td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${cantOrig.toFixed(2)} KG</td>
           ${pedido.estado === "recibido" ? `
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#dc2626;font-weight:${tieneDevol ? "bold" : "normal"};">
-            ${cantDev.toFixed(2)} KG
-          </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#16a34a;font-weight:bold;">
-            ${cantIngreso.toFixed(2)} KG
-          </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#6b7280;">
-            ${item.observacion_devolucion || (tieneDevol ? "Sin observación" : "—")}
-          </td>` : ""}
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#dc2626;font-weight:${tieneDevol ? "bold" : "normal"};">${cantDev.toFixed(2)} KG</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#16a34a;font-weight:bold;">${cantIngreso.toFixed(2)} KG</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${item.observacion_devolucion || (tieneDevol ? "Sin observación" : "—")}</td>` : ""}
         </tr>`;
     }).join("");
 
-    const html = `
-      <!DOCTYPE html><html>
+    const html = `<!DOCTYPE html><html>
       <head><meta charset="UTF-8"><title>${titulo}</title>
       <style>
         *{margin:0;padding:0;box-sizing:border-box;}
@@ -422,83 +415,35 @@ export default function PedidosPage() {
       </style></head>
       <body>
         <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
-
-        <div class="header">
-          <h1>CASERCON S.A.S</h1>
-          <h2>${titulo}</h2>
-        </div>
-
+        <div class="header"><h1>CASERCON S.A.S</h1><h2>${titulo}</h2></div>
         <div class="section-title">Información General</div>
         <div class="info-grid">
           <div class="info-item"><label>N° Orden</label><span>${pedido.no_orden_compra}</span></div>
           <div class="info-item"><label>Estado</label><span>${pedido.estado.toUpperCase()}</span></div>
-          <div class="info-item">
-            <label>Proveedor</label>
-            <span>${pedido.nombre_proveedor}${pedido.nombre_empresa ? ` — ${pedido.nombre_empresa}` : ""}</span>
-          </div>
-          <div class="info-item">
-            <label>Fecha Creación</label>
-            <span>${new Date(pedido.fecha_creacion).toLocaleDateString("es-CO", { year:"numeric", month:"long", day:"numeric" })}</span>
-          </div>
+          <div class="info-item"><label>Proveedor</label><span>${pedido.nombre_proveedor}${pedido.nombre_empresa ? ` — ${pedido.nombre_empresa}` : ""}</span></div>
+          <div class="info-item"><label>Fecha Creación</label><span>${new Date(pedido.fecha_creacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}</span></div>
           <div class="info-item"><label>Creado por</label><span>${pedido.usuario_creador || "—"}</span></div>
-          ${pedido.usuario_receptor ? `
-          <div class="info-item"><label>Recibido por</label><span>${pedido.usuario_receptor}</span></div>` : ""}
-          ${pedido.fecha_entrega ? `
-          <div class="info-item">
-            <label>${pedido.estado === "recibido" ? "Fecha Recepción" : "Entrega Esperada"}</label>
-            <span>${new Date(pedido.fecha_entrega).toLocaleDateString("es-CO", { year:"numeric", month:"long", day:"numeric" })}</span>
-          </div>` : ""}
-          ${pedido.observaciones ? `
-          <div class="info-item" style="grid-column:span 2;">
-            <label>Observaciones del pedido</label>
-            <span>${pedido.observaciones}</span>
-          </div>` : ""}
+          ${pedido.usuario_receptor ? `<div class="info-item"><label>Recibido por</label><span>${pedido.usuario_receptor}</span></div>` : ""}
+          ${pedido.fecha_entrega ? `<div class="info-item"><label>${pedido.estado === "recibido" ? "Fecha Recepción" : "Entrega Esperada"}</label><span>${new Date(pedido.fecha_entrega).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}</span></div>` : ""}
+          ${pedido.observaciones ? `<div class="info-item" style="grid-column:span 2;"><label>Observaciones del pedido</label><span>${pedido.observaciones}</span></div>` : ""}
         </div>
-
         <div class="section-title">Materias Primas</div>
         <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Materia Prima</th>
-              <th style="text-align:center">Cantidad Solicitada</th>
-              ${pedido.estado === "recibido" ? `
-              <th style="text-align:center">Devuelto</th>
-              <th style="text-align:center">Ingresado</th>
-              <th>Observación Devolución</th>` : ""}
-            </tr>
-          </thead>
+          <thead><tr><th>#</th><th>Materia Prima</th><th style="text-align:center">Cantidad Solicitada</th>${pedido.estado === "recibido" ? "<th style='text-align:center'>Devuelto</th><th style='text-align:center'>Ingresado</th><th>Observación Devolución</th>" : ""}</tr></thead>
           <tbody>
             ${filas}
             <tr class="total-row">
               <td colspan="2">TOTAL</td>
-              <td style="text-align:center;">
-                ${(pedido.items || []).filter(Boolean)
-                  .reduce((s, i) => s + parseFloat(i.cantidad_solicitada), 0).toFixed(2)} KG
-              </td>
+              <td style="text-align:center;">${(pedido.items || []).filter(Boolean).reduce((s, i) => s + parseFloat(i.cantidad_solicitada), 0).toFixed(2)} KG</td>
               ${pedido.estado === "recibido" ? `
-              <td style="text-align:center;color:#dc2626;">
-                ${(pedido.items || []).filter(Boolean)
-                  .reduce((s, i) => s + parseFloat(i.cantidad_devuelta || 0), 0).toFixed(2)} KG
-              </td>
-              <td style="text-align:center;color:#16a34a;">
-                ${(pedido.items || []).filter(Boolean)
-                  .reduce((s, i) => s + (parseFloat(i.cantidad_solicitada) - parseFloat(i.cantidad_devuelta || 0)), 0).toFixed(2)} KG
-              </td>
+              <td style="text-align:center;color:#dc2626;">${(pedido.items || []).filter(Boolean).reduce((s, i) => s + parseFloat(i.cantidad_devuelta || 0), 0).toFixed(2)} KG</td>
+              <td style="text-align:center;color:#16a34a;">${(pedido.items || []).filter(Boolean).reduce((s, i) => s + (parseFloat(i.cantidad_solicitada) - parseFloat(i.cantidad_devuelta || 0)), 0).toFixed(2)} KG</td>
               <td>—</td>` : ""}
             </tr>
           </tbody>
         </table>
-
-        <div class="firma">
-          <div>Firma Operario / Receptor</div>
-          <div>Firma Administrador</div>
-        </div>
-
-        <div class="footer">
-          <p>CASERCON S.A.S — Fabricante de Pinturas</p>
-          <p>Impreso el ${new Date().toLocaleDateString("es-CO", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" })}</p>
-        </div>
+        <div class="firma"><div>Firma Operario / Receptor</div><div>Firma Administrador</div></div>
+        <div class="footer"><p>CASERCON S.A.S — Fabricante de Pinturas</p><p>Impreso el ${new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p></div>
       </body></html>`;
 
     const ventana = window.open("", "_blank");
@@ -510,9 +455,9 @@ export default function PedidosPage() {
   // ── Badges ───────────────────────────────────────────────────────
   const getEstadoBadge = (estado) => {
     const cfg = {
-      pendiente: { cls: "bg-yellow-100 text-yellow-700", icon: <Clock className="w-4 h-4" />,      label: "Pendiente" },
-      recibido:  { cls: "bg-green-100 text-green-700",   icon: <CheckCircle className="w-4 h-4" />, label: "Recibido"  },
-      cancelado: { cls: "bg-red-100 text-red-700",       icon: <XCircle className="w-4 h-4" />,     label: "Cancelado" },
+      pendiente: { cls: "bg-yellow-100 text-yellow-700", icon: <Clock className="w-4 h-4" />, label: "Pendiente" },
+      recibido:  { cls: "bg-green-100 text-green-700",  icon: <CheckCircle className="w-4 h-4" />, label: "Recibido" },
+      cancelado: { cls: "bg-red-100 text-red-700",      icon: <XCircle className="w-4 h-4" />, label: "Cancelado" },
     };
     const c = cfg[estado] || { cls: "bg-gray-100 text-gray-700", icon: null, label: estado };
     return (
@@ -525,7 +470,6 @@ export default function PedidosPage() {
   // ── RENDER ───────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -575,7 +519,7 @@ export default function PedidosPage() {
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+          <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por orden, proveedor o usuario..."
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
@@ -586,14 +530,14 @@ export default function PedidosPage() {
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
                   className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
               </div>
               <span className="text-gray-400 font-medium">—</span>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <input type="date" value={fechaFin} min={fechaInicio || undefined}
-                  onChange={e => setFechaFin(e.target.value)}
+                  onChange={(e) => setFechaFin(e.target.value)}
                   className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
               </div>
               {(fechaInicio || fechaFin) && (
@@ -619,23 +563,15 @@ export default function PedidosPage() {
             <p className="text-gray-500">No hay pedidos en este estado</p>
           </div>
         ) : (
-          pedidosFiltrados.map(pedido => {
+          pedidosFiltrados.map((pedido) => {
             const esDevolucion = pedido.tipo_pedido === "devolucion";
             return (
               <div key={pedido.id_pedido}
-                className={`bg-white rounded-lg border-2 shadow-sm p-6 ${
-                  esDevolucion ? "border-purple-200 bg-purple-50" : "border-gray-200"
-                }`}>
-
-                {/* Cabecera */}
+                className={`bg-white rounded-lg border-2 shadow-sm p-6 ${esDevolucion ? "border-purple-200 bg-purple-50" : "border-gray-200"}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      esDevolucion ? "bg-purple-100" : "bg-blue-100"
-                    }`}>
-                      {esDevolucion
-                        ? <RotateCcw className="w-6 h-6 text-purple-600" />
-                        : <Truck className="w-6 h-6 text-blue-600" />}
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${esDevolucion ? "bg-purple-100" : "bg-blue-100"}`}>
+                      {esDevolucion ? <RotateCcw className="w-6 h-6 text-purple-600" /> : <Truck className="w-6 h-6 text-blue-600" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -651,18 +587,13 @@ export default function PedidosPage() {
                         <span className="font-medium">Proveedor:</span> {pedido.nombre_proveedor}
                         {pedido.nombre_empresa && ` — ${pedido.nombre_empresa}`}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Creado por: {pedido.usuario_creador}
-                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">Creado por: {pedido.usuario_creador}</p>
                       {pedido.usuario_receptor && (
-                        <p className="text-xs text-green-600 mt-0.5 font-medium">
-                          Recibido por: {pedido.usuario_receptor}
-                        </p>
+                        <p className="text-xs text-green-600 mt-0.5 font-medium">Recibido por: {pedido.usuario_receptor}</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Acciones */}
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     {pedido.estado === "pendiente" && (
                       <button onClick={() => abrirRecibir(pedido)}
@@ -670,16 +601,12 @@ export default function PedidosPage() {
                         <CheckCircle className="w-4 h-4" /> Recibir
                       </button>
                     )}
-
                     {(pedido.estado === "pendiente" || isAdministrador) && (
                       <button onClick={() => imprimirOrden(pedido)}
-                        className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg transition-colors text-sm ${
-                          esDevolucion ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-600 hover:bg-gray-700"
-                        }`}>
+                        className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg transition-colors text-sm ${esDevolucion ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-600 hover:bg-gray-700"}`}>
                         <Printer className="w-4 h-4" /> Imprimir
                       </button>
                     )}
-
                     {isAdministrador && pedido.estado === "pendiente" && (
                       <>
                         <button onClick={() => abrirEditar(pedido)}
@@ -687,8 +614,7 @@ export default function PedidosPage() {
                           <Edit className="w-4 h-4" /> Editar
                         </button>
                         {!esDevolucion && (
-                          <button
-                            onClick={() => { setPedidoActivo(pedido); setModalCancelar(true); }}
+                          <button onClick={() => { setPedidoActivo(pedido); setModalCancelar(true); }}
                             className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
                             <Trash2 className="w-4 h-4" /> Cancelar
                           </button>
@@ -698,32 +624,22 @@ export default function PedidosPage() {
                   </div>
                 </div>
 
-                {/* Fechas */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
                   <div>
                     <p className="text-gray-500 mb-1">Fecha Creación</p>
-                    <p className="font-medium text-gray-900">
-                      {new Date(pedido.fecha_creacion).toLocaleDateString("es-CO")}
-                    </p>
+                    <p className="font-medium text-gray-900">{new Date(pedido.fecha_creacion).toLocaleDateString("es-CO")}</p>
                   </div>
                   {pedido.fecha_entrega && (
                     <div>
-                      <p className="text-gray-500 mb-1">
-                        {pedido.estado === "recibido" ? "Fecha Recepción" : "Entrega Esperada"}
-                      </p>
-                      <p className="font-medium text-gray-900">
-                        {new Date(pedido.fecha_entrega).toLocaleDateString("es-CO")}
-                      </p>
+                      <p className="text-gray-500 mb-1">{pedido.estado === "recibido" ? "Fecha Recepción" : "Entrega Esperada"}</p>
+                      <p className="font-medium text-gray-900">{new Date(pedido.fecha_entrega).toLocaleDateString("es-CO")}</p>
                     </div>
                   )}
                 </div>
 
-                {/* Observaciones generales del pedido */}
                 {pedido.observaciones && (
                   <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <p className="text-sm text-blue-900">
-                      <span className="font-medium">Observaciones:</span> {pedido.observaciones}
-                    </p>
+                    <p className="text-sm text-blue-900"><span className="font-medium">Observaciones:</span> {pedido.observaciones}</p>
                   </div>
                 )}
 
@@ -828,136 +744,81 @@ export default function PedidosPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full my-8">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="font-bold text-gray-900 text-xl">
-                {pedidoEditando ? "Editar Pedido" : "Nueva Orden de Recepción"}
-              </h2>
-              <button onClick={() => { setModalForm(false); setErrores({}); }}
-                className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
+              <h2 className="font-bold text-gray-900 text-xl">{pedidoEditando ? "Editar Pedido" : "Nueva Orden de Recepción"}</h2>
+              <button onClick={() => { setModalForm(false); setErrores({}); }} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
-              {/* Proveedor */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Proveedor *</label>
                 <select value={formulario.id_proveedor}
-                  onChange={e => {
-                    setFormulario({...formulario, id_proveedor: e.target.value});
-                    setErrores(prev => ({...prev, id_proveedor: undefined}));
-                  }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errores.id_proveedor ? "border-red-500 focus:ring-red-500" : "border-gray-300"
-                  }`}>
+                  onChange={(e) => { setFormulario({ ...formulario, id_proveedor: e.target.value }); setErrores((prev) => ({ ...prev, id_proveedor: undefined })); }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errores.id_proveedor ? "border-red-500 focus:ring-red-500" : "border-gray-300"}`}>
                   <option value="">Seleccione un proveedor</option>
-                  {proveedores.map(p => (
+                  {proveedores.map((p) => (
                     <option key={p.id_proveedor} value={p.id_proveedor}>
                       {p.nombre_proveedor}{p.nombre_empresa ? ` — ${p.nombre_empresa}` : ""}
                     </option>
                   ))}
                 </select>
-                {errores.id_proveedor && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />{errores.id_proveedor}
-                  </p>
-                )}
+                {errores.id_proveedor && <p className="text-red-500 text-sm mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errores.id_proveedor}</p>}
               </div>
 
-              {/* Fecha entrega */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha de Entrega Esperada *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de Entrega Esperada *</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   <input type="date" value={formulario.fecha_entrega}
-                    onChange={e => {
-                      setFormulario({...formulario, fecha_entrega: e.target.value});
-                      setErrores(prev => ({...prev, fecha_entrega: undefined}));
-                    }}
-                    className={`w-full pl-9 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 text-gray-700 ${
-                      errores.fecha_entrega
-                        ? "border-red-500 focus:ring-red-500"
-                        : "border-gray-300 focus:ring-blue-500"
-                    }`} />
+                    onChange={(e) => { setFormulario({ ...formulario, fecha_entrega: e.target.value }); setErrores((prev) => ({ ...prev, fecha_entrega: undefined })); }}
+                    className={`w-full pl-9 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 text-gray-700 ${errores.fecha_entrega ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`} />
                 </div>
-                {errores.fecha_entrega && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />{errores.fecha_entrega}
-                  </p>
-                )}
+                {errores.fecha_entrega && <p className="text-red-500 text-sm mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errores.fecha_entrega}</p>}
               </div>
 
-              {/* Items */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium text-gray-700">Materias Primas *</label>
-                  <button type="button" onClick={agregarItem}
-                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
+                  <button type="button" onClick={agregarItem} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
                     <Plus className="w-4 h-4" /> Agregar item
                   </button>
                 </div>
                 {errores.items && !hayItemsValidos(formulario.items) && (
-                  <p className="text-red-500 text-sm mb-2 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />{errores.items}
-                  </p>
+                  <p className="text-red-500 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errores.items}</p>
                 )}
                 <div className="space-y-2 max-h-52 overflow-y-auto">
                   {formulario.items.map((item, idx) => (
                     <div key={idx} className="flex flex-col gap-1">
                       <div className="flex gap-2">
                         <select value={item.id_materia}
-                          onChange={e => {
-                            actualizarItem(idx, "id_materia", e.target.value);
-                            setErrores(prev => ({...prev, [`item_materia_${idx}`]: undefined}));
-                          }}
-                          className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                            errores[`item_materia_${idx}`] ? "border-red-500" : "border-gray-300"
-                          }`}>
+                          onChange={(e) => { actualizarItem(idx, "id_materia", e.target.value); setErrores((prev) => ({ ...prev, [`item_materia_${idx}`]: undefined })); }}
+                          className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${errores[`item_materia_${idx}`] ? "border-red-500" : "border-gray-300"}`}>
                           <option value="">Seleccione materia prima</option>
-                          {materias.map(m => (
-                            <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
-                          ))}
+                          {materias.map((m) => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
                         </select>
-                        <input type="number" step="0.01" min="0.01"
-                          value={item.cantidad_solicitada}
-                          onChange={e => {
-                            actualizarItem(idx, "cantidad_solicitada", e.target.value);
-                            setErrores(prev => ({...prev, [`item_cantidad_${idx}`]: undefined}));
-                          }}
+                        <input type="number" step="0.01" min="0.01" value={item.cantidad_solicitada}
+                          onChange={(e) => { actualizarItem(idx, "cantidad_solicitada", e.target.value); setErrores((prev) => ({ ...prev, [`item_cantidad_${idx}`]: undefined })); }}
                           placeholder="KG"
-                          className={`w-28 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                            errores[`item_cantidad_${idx}`] ? "border-red-500" : "border-gray-300"
-                          }`} />
+                          className={`w-28 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${errores[`item_cantidad_${idx}`] ? "border-red-500" : "border-gray-300"}`} />
                         {formulario.items.length > 1 && (
-                          <button type="button" onClick={() => eliminarItem(idx)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                          <button type="button" onClick={() => eliminarItem(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {errores[`item_materia_${idx}`] && (
-                          <p className="text-red-500 text-xs flex items-center gap-1 flex-1">
-                            <AlertTriangle className="w-3 h-3" />{errores[`item_materia_${idx}`]}
-                          </p>
-                        )}
-                        {errores[`item_cantidad_${idx}`] && (
-                          <p className="text-red-500 text-xs flex items-center gap-1 w-28">
-                            <AlertTriangle className="w-3 h-3" />{errores[`item_cantidad_${idx}`]}
-                          </p>
-                        )}
+                        {errores[`item_materia_${idx}`] && <p className="text-red-500 text-xs flex items-center gap-1 flex-1"><AlertTriangle className="w-3 h-3" />{errores[`item_materia_${idx}`]}</p>}
+                        {errores[`item_cantidad_${idx}`] && <p className="text-red-500 text-xs flex items-center gap-1 w-28"><AlertTriangle className="w-3 h-3" />{errores[`item_cantidad_${idx}`]}</p>}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Observaciones */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
                 <textarea value={formulario.observaciones}
-                  onChange={e => setFormulario({...formulario, observaciones: e.target.value})}
+                  onChange={(e) => setFormulario({ ...formulario, observaciones: e.target.value })}
                   rows={3} placeholder="Información adicional del pedido..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
@@ -984,16 +845,13 @@ export default function PedidosPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="font-bold text-gray-900 text-xl">Recepción de Pedido</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {pedidoActivo.no_orden_compra} — {pedidoActivo.nombre_proveedor}
-                </p>
+                <p className="text-sm text-gray-600 mt-1">{pedidoActivo.no_orden_compra} — {pedidoActivo.nombre_proveedor}</p>
               </div>
               <button onClick={() => { setModalRecibir(false); setPedidoActivo(null); setItemsDevolucion([]); }}
                 className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start gap-3">
@@ -1013,76 +871,48 @@ export default function PedidosPage() {
 
               <div className="space-y-4">
                 {itemsDevolucion.map((item, idx) => (
-                  <div key={idx}
-                    className={`border-2 rounded-lg p-4 transition-colors ${
-                      item.tieneProblema ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
-                    }`}>
+                  <div key={idx} className={`border-2 rounded-lg p-4 transition-colors ${item.tieneProblema ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"}`}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3 flex-1">
-                        <Package className={`w-5 h-5 flex-shrink-0 ${
-                          item.tieneProblema ? "text-red-600" : "text-gray-500"
-                        }`} />
+                        <Package className={`w-5 h-5 flex-shrink-0 ${item.tieneProblema ? "text-red-600" : "text-gray-500"}`} />
                         <div>
                           <p className="font-medium text-gray-900">{item.nombre_materia}</p>
-                          <p className="text-sm text-gray-600">
-                            Cantidad pedida: <span className="font-bold">{item.cantidad_solicitada} KG</span>
-                          </p>
+                          <p className="text-sm text-gray-600">Cantidad pedida: <span className="font-bold">{item.cantidad_solicitada} KG</span></p>
                         </div>
                       </div>
                       <label className="flex items-center gap-2 cursor-pointer ml-4 flex-shrink-0">
-                        <input type="checkbox" checked={item.tieneProblema}
-                          onChange={() => toggleProblema(idx)}
+                        <input type="checkbox" checked={item.tieneProblema} onChange={() => toggleProblema(idx)}
                           className="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500" />
-                        <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                          Tiene problema
-                        </span>
+                        <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Tiene problema</span>
                       </label>
                     </div>
-
                     {item.tieneProblema && (
                       <div className="space-y-3 pt-3 border-t border-red-200">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Cantidad a devolver (KG) *
-                            </label>
-                            <input type="number" step="0.01" min="0.01"
-                              max={item.cantidad_solicitada}
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad a devolver (KG) *</label>
+                            <input type="number" step="0.01" min="0.01" max={item.cantidad_solicitada}
                               value={item.cantidad_devuelta}
-                              onChange={e => actualizarDevolucion(idx, "cantidad_devuelta", e.target.value)}
+                              onChange={(e) => actualizarDevolucion(idx, "cantidad_devuelta", e.target.value)}
                               placeholder="0.00"
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm ${
-                                item.cantidad_devuelta && Number(item.cantidad_devuelta) > item.cantidad_solicitada
-                                  ? "border-red-500 bg-red-50" : "border-gray-300"
-                              }`} />
-                            {item.cantidad_devuelta &&
-                              Number(item.cantidad_devuelta) > item.cantidad_solicitada && (
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm ${item.cantidad_devuelta && Number(item.cantidad_devuelta) > item.cantidad_solicitada ? "border-red-500 bg-red-50" : "border-gray-300"}`} />
+                            {item.cantidad_devuelta && Number(item.cantidad_devuelta) > item.cantidad_solicitada && (
                               <p className="text-red-500 text-xs mt-1">Excede la cantidad pedida</p>
                             )}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Cantidad que entra (KG)
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad que entra (KG)</label>
                             <input type="text" readOnly
-                              value={Math.max(0,
-                                item.cantidad_solicitada - (Number(item.cantidad_devuelta) || 0)
-                              ).toFixed(2)}
+                              value={Math.max(0, item.cantidad_solicitada - (Number(item.cantidad_devuelta) || 0)).toFixed(2)}
                               className="w-full px-3 py-2 border border-green-300 bg-green-50 text-green-700 font-bold rounded-lg text-sm" />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Observación / Razón de devolución *
-                          </label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Observación / Razón de devolución *</label>
                           <textarea value={item.observacion}
-                            onChange={e => actualizarDevolucion(idx, "observacion", e.target.value)}
-                            rows={2}
-                            placeholder="Ej: Material dañado, empaque roto, calidad deficiente..."
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-sm ${
-                              item.tieneProblema && !item.observacion.trim()
-                                ? "border-red-300" : "border-gray-300"
-                            }`} />
+                            onChange={(e) => actualizarDevolucion(idx, "observacion", e.target.value)}
+                            rows={2} placeholder="Ej: Material dañado, empaque roto, calidad deficiente..."
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-sm ${item.tieneProblema && !item.observacion.trim() ? "border-red-300" : "border-gray-300"}`} />
                         </div>
                       </div>
                     )}
@@ -1090,35 +920,27 @@ export default function PedidosPage() {
                 ))}
               </div>
 
-              {/* Resumen */}
               <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <h3 className="font-medium text-gray-900 mb-3">Resumen de Recepción</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-500">Items con problema</p>
-                    <p className="text-2xl font-bold text-red-600">
-                      {itemsDevolucion.filter(i => i.tieneProblema).length}
-                    </p>
+                    <p className="text-2xl font-bold text-red-600">{itemsDevolucion.filter((i) => i.tieneProblema).length}</p>
                   </div>
                   <div>
                     <p className="text-gray-500">Items sin problema</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {itemsDevolucion.filter(i => !i.tieneProblema).length}
-                    </p>
+                    <p className="text-2xl font-bold text-green-600">{itemsDevolucion.filter((i) => !i.tieneProblema).length}</p>
                   </div>
-                  {itemsDevolucion.some(i => i.tieneProblema) && (
+                  {itemsDevolucion.some((i) => i.tieneProblema) && (
                     <div className="col-span-2 md:col-span-1 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
-                      <p className="text-xs text-amber-700 font-medium">
-                        ⚠️ Se generará una orden de devolución automáticamente
-                      </p>
+                      <p className="text-xs text-amber-700 font-medium">⚠️ Se generará una orden de devolución automáticamente</p>
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button type="button"
-                  onClick={() => { setModalRecibir(false); setPedidoActivo(null); setItemsDevolucion([]); }}
+                <button type="button" onClick={() => { setModalRecibir(false); setPedidoActivo(null); setItemsDevolucion([]); }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
                   Cancelar
                 </button>
@@ -1136,7 +958,7 @@ export default function PedidosPage() {
         </div>
       )}
 
-      {/* ── Modal Cancelar (= eliminar físico) ── */}
+      {/* ── Modal Cancelar ── */}
       {modalCancelar && pedidoActivo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">

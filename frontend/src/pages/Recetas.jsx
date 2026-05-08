@@ -3,38 +3,53 @@ import React from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
-  Plus, Edit, Ban, Check, FlaskConical,
-  X, ChevronDown, ChevronUp, Package,
+  Plus,
+  Edit,
+  Ban,
+  Check,
+  FlaskConical,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Package,
 } from "lucide-react";
 
-const API    = "http://localhost:3000/api/recetas";
+const API = "http://localhost:3000/api/recetas";
 const API_MP = "http://localhost:3000/api/materias-primas";
 
 export default function Recetas() {
   const { isAdministrador } = useAuth();
 
-  const [recetas, setRecetas]               = useState([]);
+  const [recetas, setRecetas] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
-  const [cargando, setCargando]             = useState(true);
-  const [busqueda, setBusqueda]             = useState("");
-  const [filtroEstado, setFiltroEstado]     = useState("Activo");
-  const [modalAbierto, setModalAbierto]     = useState(false);
-  const [editando, setEditando]             = useState(null);
-  const [guardando, setGuardando]           = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("Activo");
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [guardando, setGuardando] = useState(false);
   const [nombreProducto, setNombreProducto] = useState("");
-  const [ingredientes, setIngredientes]     = useState([{ id_materia: "", cantidad_porcentaje: "" }]);
-  const [confirmOpen, setConfirmOpen]       = useState(false);
-  const [confirmData, setConfirmData]       = useState(null);
-  const [expandidas, setExpandidas]         = useState(new Set());
+  const [ingredientes, setIngredientes] = useState([
+    { id_materia: "", cantidad_porcentaje: "" },
+  ]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmData, setConfirmData] = useState(null);
+  const [expandidas, setExpandidas] = useState(new Set());
 
   const getToken = () => localStorage.getItem("token");
 
   const cargarRecetas = async () => {
     setCargando(true);
     try {
-      const res  = await fetch(API, { headers: { Authorization: `Bearer ${getToken()}` } });
+      const res = await fetch(API, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       const data = await res.json();
-      const lista = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      const lista = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data)
+          ? data
+          : [];
       setRecetas(lista);
     } catch {
       toast.error("Error al cargar recetas");
@@ -45,7 +60,9 @@ export default function Recetas() {
 
   const cargarMateriasPrimas = async () => {
     try {
-      const res  = await fetch(API_MP, { headers: { Authorization: `Bearer ${getToken()}` } });
+      const res = await fetch(API_MP, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       const data = await res.json();
       const todas = Array.isArray(data) ? data : [];
       setMateriasPrimas(todas.filter((m) => m.estado === "Activo"));
@@ -57,7 +74,7 @@ export default function Recetas() {
   useEffect(() => {
     cargarRecetas();
     cargarMateriasPrimas();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recetasFiltradas = useMemo(() => {
@@ -71,14 +88,23 @@ export default function Recetas() {
   }, [recetas, busqueda, filtroEstado]);
 
   const sumaPorcentajes = useMemo(() => {
-    return ingredientes.reduce((sum, ing) => sum + (parseFloat(ing.cantidad_porcentaje) || 0), 0);
+    return ingredientes.reduce(
+      (sum, ing) => sum + (parseFloat(ing.cantidad_porcentaje) || 0),
+      0,
+    );
   }, [ingredientes]);
 
   const agregarIngrediente = () =>
-    setIngredientes([...ingredientes, { id_materia: "", cantidad_porcentaje: "" }]);
+    setIngredientes([
+      ...ingredientes,
+      { id_materia: "", cantidad_porcentaje: "" },
+    ]);
 
   const quitarIngrediente = (index) => {
-    if (ingredientes.length === 1) { toast.error("La receta debe tener al menos un ingrediente"); return; }
+    if (ingredientes.length === 1) {
+      toast.error("La receta debe tener al menos un ingrediente");
+      return;
+    }
     setIngredientes(ingredientes.filter((_, i) => i !== index));
   };
 
@@ -98,10 +124,12 @@ export default function Recetas() {
   const abrirModalEditar = (receta) => {
     setEditando(receta);
     setNombreProducto(receta.nombre_producto);
-    setIngredientes(receta.ingredientes.map((ing) => ({
-      id_materia: ing.id_materia,
-      cantidad_porcentaje: ing.cantidad_porcentaje,
-    })));
+    setIngredientes(
+      receta.ingredientes.map((ing) => ({
+        id_materia: ing.id_materia,
+        cantidad_porcentaje: ing.cantidad_porcentaje,
+      })),
+    );
     setModalAbierto(true);
   };
 
@@ -114,20 +142,32 @@ export default function Recetas() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombreProducto.trim()) { toast.error("El nombre del producto es obligatorio"); return; }
-    if (ingredientes.some((ing) => !ing.id_materia || !ing.cantidad_porcentaje)) {
-      toast.error("Completa todos los campos de los ingredientes"); return;
+    if (!nombreProducto.trim()) {
+      toast.error("El nombre del producto es obligatorio");
+      return;
+    }
+    if (
+      ingredientes.some((ing) => !ing.id_materia || !ing.cantidad_porcentaje)
+    ) {
+      toast.error("Completa todos los campos de los ingredientes");
+      return;
     }
     if (Math.abs(sumaPorcentajes - 100) > 0.01) {
-      toast.error(`Los porcentajes deben sumar 100%. Suma actual: ${sumaPorcentajes.toFixed(2)}%`); return;
+      toast.error(
+        `Los porcentajes deben sumar 100%. Suma actual: ${sumaPorcentajes.toFixed(2)}%`,
+      );
+      return;
     }
     setGuardando(true);
     try {
-      const url    = editando ? `${API}/${editando.id_receta}` : API;
+      const url = editando ? `${API}/${editando.id_receta}` : API;
       const method = editando ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify({
           nombre_producto: nombreProducto.trim(),
           ingredientes: ingredientes.map((ing) => ({
@@ -137,8 +177,15 @@ export default function Recetas() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.message || "Error al guardar"); return; }
-      toast.success(editando ? "Receta actualizada correctamente" : "Receta creada correctamente");
+      if (!res.ok) {
+        toast.error(data.message || "Error al guardar");
+        return;
+      }
+      toast.success(
+        editando
+          ? "Receta actualizada correctamente"
+          : "Receta creada correctamente",
+      );
       cerrarModal();
       cargarRecetas();
     } catch {
@@ -156,15 +203,24 @@ export default function Recetas() {
   const confirmarAccion = async () => {
     const { receta, accion } = confirmData;
     try {
-      const url    = accion === "inhabilitar" ? `${API}/${receta.id_receta}` : `${API}/${receta.id_receta}/habilitar`;
+      const url =
+        accion === "inhabilitar"
+          ? `${API}/${receta.id_receta}`
+          : `${API}/${receta.id_receta}/habilitar`;
       const method = accion === "inhabilitar" ? "DELETE" : "PATCH";
-      const res    = await fetch(url, { method, headers: { Authorization: `Bearer ${getToken()}` } });
-      const data   = await res.json();
-      if (!res.ok) { toast.error(data.message || "Error al realizar la acción"); return; }
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "Error al realizar la acción");
+        return;
+      }
       toast.success(
         accion === "inhabilitar"
           ? `"${receta.nombre_producto}" inhabilitada correctamente`
-          : `"${receta.nombre_producto}" habilitada correctamente`
+          : `"${receta.nombre_producto}" habilitada correctamente`,
       );
       cargarRecetas();
     } catch {
@@ -186,19 +242,22 @@ export default function Recetas() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <X className="w-12 h-12 text-red-400" />
-        <p className="text-gray-600 font-medium">No tienes permisos para acceder a este módulo.</p>
+        <p className="text-gray-600 font-medium">
+          No tienes permisos para acceder a este módulo.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-bold text-gray-900 text-2xl">Recetas</h1>
-          <p className="text-gray-600 mt-1">Gestión de fórmulas de producción</p>
+          <p className="text-gray-600 mt-1">
+            Gestión de fórmulas de producción
+          </p>
         </div>
         <button
           onClick={abrirModalNuevo}
@@ -234,23 +293,29 @@ export default function Recetas() {
           <button
             onClick={() => setFiltroEstado("Activo")}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              filtroEstado === "Activo" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              filtroEstado === "Activo"
+                ? "bg-green-600 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             <span className="flex items-center gap-2">
               <Check className="w-4 h-4" />
-              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length})
+              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length}
+              )
             </span>
           </button>
           <button
             onClick={() => setFiltroEstado("Inhabilitado")}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              filtroEstado === "Inhabilitado" ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              filtroEstado === "Inhabilitado"
+                ? "bg-red-600 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             <span className="flex items-center gap-2">
               <Ban className="w-4 h-4" />
-              Inhabilitadas ({recetas.filter((r) => r.estado === "Inhabilitado").length})
+              Inhabilitadas (
+              {recetas.filter((r) => r.estado === "Inhabilitado").length})
             </span>
           </button>
         </div>
@@ -274,8 +339,10 @@ export default function Recetas() {
       ) : (
         <div className="space-y-4">
           {recetasFiltradas.map((r) => (
-            <div key={r.id_receta} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-
+            <div
+              key={r.id_receta}
+              className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+            >
               {/* Header de la card */}
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-4">
@@ -283,15 +350,25 @@ export default function Recetas() {
                     <FlaskConical className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-base">{r.nombre_producto}</h3>
-                    <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
-                      r.estado === "Activo"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}>
-                      {r.estado === "Activo"
-                        ? <><Check className="w-3 h-3" /> Habilitada</>
-                        : <><Ban className="w-3 h-3" /> Inhabilitada</>}
+                    <h3 className="font-bold text-gray-900 text-base">
+                      {r.nombre_producto}
+                    </h3>
+                    <span
+                      className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                        r.estado === "Activo"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {r.estado === "Activo" ? (
+                        <>
+                          <Check className="w-3 h-3" /> Habilitada
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-3 h-3" /> Inhabilitada
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -303,9 +380,11 @@ export default function Recetas() {
                     className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Ver ingredientes"
                   >
-                    {expandidas.has(r.id_receta)
-                      ? <ChevronUp className="w-5 h-5" />
-                      : <ChevronDown className="w-5 h-5" />}
+                    {expandidas.has(r.id_receta) ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5" />
+                    )}
                   </button>
                   {r.estado === "Activo" ? (
                     <>
@@ -353,11 +432,15 @@ export default function Recetas() {
                             <Package className="w-4 h-4 text-gray-400" />
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">{ing.nombre_materia}</p>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {ing.nombre_materia}
+                            </p>
                             <p className="text-xs text-blue-600">
                               Código: {ing.codigo}
                               <span className="text-gray-400 mx-1">•</span>
-                              <span className="text-gray-500">{ing.categoria}</span>
+                              <span className="text-gray-500">
+                                {ing.categoria}
+                              </span>
                             </p>
                           </div>
                         </div>
@@ -370,11 +453,18 @@ export default function Recetas() {
 
                   {/* Total */}
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                    <span className="text-sm font-semibold text-gray-700">Total</span>
+                    <span className="text-sm font-semibold text-gray-700">
+                      Total
+                    </span>
                     <span className="font-bold text-gray-900 text-sm">
                       {r.ingredientes
-                        ?.reduce((sum, ing) => sum + parseFloat(ing.cantidad_porcentaje), 0)
-                        .toFixed(2)}%
+                        ?.reduce(
+                          (sum, ing) =>
+                            sum + parseFloat(ing.cantidad_porcentaje),
+                          0,
+                        )
+                        .toFixed(2)}
+                      %
                     </span>
                   </div>
                 </div>
@@ -392,16 +482,23 @@ export default function Recetas() {
               <h2 className="font-bold text-gray-900 text-xl">
                 {editando ? "Editar Receta" : "Nueva Receta"}
               </h2>
-              <button onClick={cerrarModal} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
+              <button
+                onClick={cerrarModal}
+                className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+            <form
+              onSubmit={handleSubmit}
+              className="p-6 space-y-5 overflow-y-auto flex-1"
+            >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre del producto *
                 </label>
                 <input
+                  maxLength={80}
                   type="text"
                   required
                   value={nombreProducto}
@@ -412,12 +509,16 @@ export default function Recetas() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Ingredientes *</label>
-                  <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${
-                    Math.abs(sumaPorcentajes - 100) <= 0.01
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Ingredientes *
+                  </label>
+                  <span
+                    className={`text-sm font-medium px-2 py-0.5 rounded-full ${
+                      Math.abs(sumaPorcentajes - 100) <= 0.01
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
                     Suma: {sumaPorcentajes.toFixed(2)}% / 100%
                   </span>
                 </div>
@@ -427,16 +528,36 @@ export default function Recetas() {
                       <select
                         required
                         value={ing.id_materia}
-                        onChange={(e) => actualizarIngrediente(index, "id_materia", e.target.value)}
+                        onChange={(e) =>
+                          actualizarIngrediente(
+                            index,
+                            "id_materia",
+                            e.target.value,
+                          )
+                        }
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Selecciona materia prima...</option>
-                        {materiasPrimas.map((mp) => (
-                          <option key={mp.id_materia} value={mp.id_materia}>
-                            {mp.nombre}
-                          </option>
-                        ))}
+                        {materiasPrimas.map((mp) => {
+                          // Está en uso si otro ingrediente (no el actual) ya la seleccionó
+                          const enUso = ingredientes.some(
+                            (otro, i) =>
+                              i !== index &&
+                              String(otro.id_materia) === String(mp.id_materia),
+                          );
+                          return (
+                            <option
+                              key={mp.id_materia}
+                              value={mp.id_materia}
+                              disabled={enUso}
+                            >
+                              {mp.nombre}
+                              {enUso ? " (ya agregada)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
+
                       <div className="relative w-32">
                         <input
                           type="number"
@@ -445,11 +566,19 @@ export default function Recetas() {
                           max="100"
                           step="0.01"
                           value={ing.cantidad_porcentaje}
-                          onChange={(e) => actualizarIngrediente(index, "cantidad_porcentaje", e.target.value)}
+                          onChange={(e) =>
+                            actualizarIngrediente(
+                              index,
+                              "cantidad_porcentaje",
+                              e.target.value,
+                            )
+                          }
                           placeholder="0.00"
                           className="w-full px-4 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                          %
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -482,7 +611,11 @@ export default function Recetas() {
                   disabled={guardando}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {guardando ? "Guardando..." : editando ? "Guardar Cambios" : "Crear Receta"}
+                  {guardando
+                    ? "Guardando..."
+                    : editando
+                      ? "Guardar Cambios"
+                      : "Crear Receta"}
                 </button>
               </div>
             </form>
@@ -495,17 +628,28 @@ export default function Recetas() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
             <div className="flex items-center gap-3 mb-4">
-              {confirmData.accion === "inhabilitar"
-                ? <Ban className="w-8 h-8 text-red-500" />
-                : <Check className="w-8 h-8 text-green-500" />}
+              {confirmData.accion === "inhabilitar" ? (
+                <Ban className="w-8 h-8 text-red-500" />
+              ) : (
+                <Check className="w-8 h-8 text-green-500" />
+              )}
               <h2 className="font-bold text-gray-900 text-lg">
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} Receta
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}{" "}
+                Receta
               </h2>
             </div>
             <p className="text-gray-600 mb-6">
               ¿Estás seguro de que deseas{" "}
-              {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"} la receta{" "}
-              <span className="font-semibold text-gray-900">"{confirmData.receta.nombre_producto}"</span>?
+              {confirmData.accion === "inhabilitar"
+                ? "inhabilitar"
+                : "habilitar"}{" "}
+              la receta{" "}
+              <span className="font-semibold text-gray-900">
+                "{confirmData.receta.nombre_producto}"
+              </span>
+              ?
               {confirmData.accion === "inhabilitar" && (
                 <span className="block mt-2 text-sm text-red-600">
                   No podrá usarse en nuevas órdenes de producción.
@@ -514,7 +658,10 @@ export default function Recetas() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setConfirmData(null);
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancelar
@@ -527,13 +674,14 @@ export default function Recetas() {
                     : "bg-green-600 hover:bg-green-700"
                 }`}
               >
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"}
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -216,8 +216,6 @@ const produccionController = {
 
   async editarRecetaOrden(req, res, next) {
     try {
-      console.log("BODY recibido:", JSON.stringify(req.body, null, 2)); // 👈 agrega esto
-      console.log("USER:", req.user); // 👈 y esto
       const { ingredientes, motivo } = req.body;
       const userId = req.user.id;
       const rolNombre = req.user.rol_nombre;
@@ -237,8 +235,7 @@ const produccionController = {
         throw new AppError(
           "El motivo de modificación es obligatorio",
           httpStatus.BAD_REQUEST,
-        );
-      }
+        );      }
 
       const result = await producccionService.editarRecetaOrden(
         req.params.id,
