@@ -10,6 +10,7 @@ import {
 const API = "http://localhost:3000/api/pedidos";
 
 export default function PedidosPage() {
+  const STOCK_MAX = 99999.99;
   const { isAdministrador, user } = useAuth();
   const token   = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -65,7 +66,7 @@ export default function PedidosPage() {
   useEffect(() => {
     fetchPedidos();
     fetchCatalogos();
-    window.addEventListener("focus", fetchPedidos);
+    ;
     return () => window.removeEventListener("focus", fetchPedidos);
   }, []);
 
@@ -130,12 +131,24 @@ export default function PedidosPage() {
     });
 
   const actualizarItem = (idx, campo, valor) =>
-    setFormulario(prev => {
-      const copia = [...prev.items];
-      copia[idx] = { ...copia[idx], [campo]: valor };
-      if (hayItemsValidos(copia)) setErrores(e => ({ ...e, items: undefined }));
-      return { ...prev, items: copia };
-    });
+  setFormulario((prev) => {
+    const copia = [...prev.items];
+    copia[idx] = { ...copia[idx], [campo]: valor };
+
+    // Limpiar error de duplicado en todos los items si se cambió la materia
+    if (campo === "id_materia") {
+      setErrores((e) => {
+        const limpio = { ...e };
+        copia.forEach((_, i) => delete limpio[`item_materia_${i}`]);
+        return limpio;
+      });
+    } else if (campo === "cantidad_solicitada") {
+      setErrores((e) => { const l = { ...e }; delete l[`item_cantidad_${idx}`]; return l; });
+    }
+
+    if (hayItemsValidos(copia)) setErrores((e) => ({ ...e, items: undefined }));
+    return { ...prev, items: copia };
+  });
 
   // ── Abrir modales ────────────────────────────────────────────────
   const abrirCrear = () => {
@@ -177,62 +190,79 @@ export default function PedidosPage() {
 
   // ── Guardar pedido ───────────────────────────────────────────────
   const guardarPedido = async () => {
-    const nuevosErrores = {};
-    if (!formulario.id_proveedor)
-      nuevosErrores.id_proveedor = "Debe seleccionar un proveedor";
-    if (!formulario.fecha_entrega)
-      nuevosErrores.fecha_entrega = "Debe ingresar una fecha de entrega";
+  const nuevosErrores = {};
 
-    const itemsValidos = formulario.items.filter(
-      i => i.id_materia && i.cantidad_solicitada && Number(i.cantidad_solicitada) > 0
-    );
-    if (itemsValidos.length === 0)
-      nuevosErrores.items = "Debe agregar al menos una materia prima con cantidad válida";
-    else {
-      formulario.items.forEach((item, idx) => {
-        if (!item.id_materia)
-          nuevosErrores[`item_materia_${idx}`] = "Seleccione una materia prima";
-        if (!item.cantidad_solicitada || Number(item.cantidad_solicitada) <= 0)
-          nuevosErrores[`item_cantidad_${idx}`] = "Cantidad inválida";
-      });
+  if (!formulario.id_proveedor)
+    nuevosErrores.id_proveedor = "Debe seleccionar un proveedor";
+  if (!formulario.fecha_entrega)
+    nuevosErrores.fecha_entrega = "Debe ingresar una fecha de entrega";
+
+  // Validar items individualmente
+  const idsUsados = new Set();
+  formulario.items.forEach((item, idx) => {
+    if (!item.id_materia) {
+      nuevosErrores[`item_materia_${idx}`] = "Seleccione una materia prima";
+    } else if (idsUsados.has(item.id_materia)) {
+      nuevosErrores[`item_materia_${idx}`] = "Esta materia prima ya fue agregada en otro item";
+    } else {
+      idsUsados.add(item.id_materia);
     }
 
-    if (Object.keys(nuevosErrores).length > 0) { setErrores(nuevosErrores); return; }
-    setErrores({});
-
-    const payload = {
-      id_proveedor:  Number(formulario.id_proveedor),
-      fecha_entrega: formulario.fecha_entrega || null,
-      observaciones: formulario.observaciones || null,
-      items: itemsValidos.map(i => ({
-        id_materia:          Number(i.id_materia),
-        cantidad_solicitada: parseFloat(i.cantidad_solicitada),
-      })),
-    };
-
-    try {
-      const url    = pedidoEditando ? `${API}/${pedidoEditando.id_pedido}` : API;
-      const method = pedidoEditando ? "PUT" : "POST";
-      const res    = await fetch(url, {
-        method,
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.status === "error") {
-        toast.error("Error al guardar", { description: data.message }); return;
-      }
-      toast.success(pedidoEditando ? "Pedido actualizado" : "Pedido creado", {
-        description: pedidoEditando
-          ? "Los cambios han sido guardados exitosamente"
-          : "La orden de recepción fue creada exitosamente",
-      });
-      setModalForm(false);
-      fetchPedidos();
-    } catch {
-      toast.error("Error de conexión", { description: "No se pudo conectar con el servidor" });
+    const cant = parseFloat(item.cantidad_solicitada);
+    if (!item.cantidad_solicitada || isNaN(cant) || cant <= 0) {
+      nuevosErrores[`item_cantidad_${idx}`] = "Ingrese una cantidad válida mayor a 0";
+    } else if (cant > STOCK_MAX) {
+      nuevosErrores[`item_cantidad_${idx}`] = `Máximo ${STOCK_MAX.toLocaleString("es-CO")} KG`;
     }
+  });
+
+  const itemsValidos = formulario.items.filter(
+    (i) => i.id_materia && parseFloat(i.cantidad_solicitada) > 0
+  );
+  if (itemsValidos.length === 0)
+    nuevosErrores.items = "Debe agregar al menos una materia prima con cantidad válida";
+
+  if (Object.keys(nuevosErrores).length > 0) {
+    setErrores(nuevosErrores);
+    toast.error("Corrige los campos marcados antes de continuar");
+    return;
+  }
+  setErrores({});
+
+  const payload = {
+    id_proveedor:  Number(formulario.id_proveedor),
+    fecha_entrega: formulario.fecha_entrega || null,
+    observaciones: formulario.observaciones || null,
+    items: itemsValidos.map((i) => ({
+      id_materia:          Number(i.id_materia),
+      cantidad_solicitada: parseFloat(i.cantidad_solicitada),
+    })),
   };
+
+  try {
+    const url    = pedidoEditando ? `${API}/${pedidoEditando.id_pedido}` : API;
+    const method = pedidoEditando ? "PUT" : "POST";
+    const res    = await fetch(url, {
+      method,
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.status === "error") {
+      toast.error("Error al guardar", { description: data.message });
+      return;
+    }
+    toast.success(pedidoEditando ? "Pedido actualizado" : "Pedido creado", {
+      description: pedidoEditando
+        ? "Los cambios han sido guardados exitosamente"
+        : "La orden de recepción fue creada exitosamente",
+    });
+    setModalForm(false);
+    fetchPedidos();
+  } catch {
+    toast.error("Error de conexión", { description: "No se pudo conectar con el servidor" });
+  }
+};
 
   // ── Devoluciones ─────────────────────────────────────────────────
   const toggleProblema = (idx) => {
@@ -698,68 +728,95 @@ export default function PedidosPage() {
                 )}
 
                 {/* Items */}
-                {pedido.items?.filter(Boolean).length > 0 && (
-                  <div className="border-t border-gray-200 pt-4">
-                    <p className="text-sm font-medium text-gray-700 mb-3">Materias Primas:</p>
-                    <div className="space-y-2">
-                      {pedido.items.filter(Boolean).map((item, idx) => {
-                        const cantDev     = Number(item.cantidad_devuelta || 0);
-                        const cantOrig    = Number(item.cantidad_solicitada);
-                        const cantIngreso = cantOrig - cantDev;
-                        const tieneDevol  = cantDev > 0;
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">Materias Primas *</label>
+                    <button type="button" onClick={agregarItem}
+                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
+                      <Plus className="w-4 h-4" /> Agregar item
+                    </button>
+                  </div>
 
-                        return (
-                          <div key={idx}
-                            className={`p-3 rounded-lg border ${
-                              tieneDevol
-                                ? "bg-yellow-50 border-yellow-200"
-                                : "bg-gray-50 border-gray-100"
-                            }`}>
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                                <span className="text-sm font-medium text-gray-700">
-                                  {item.nombre_materia}
-                                </span>
-                              </div>
-                              <span className="text-sm font-bold text-gray-900">
-                                {cantOrig.toFixed(2)} KG
-                                <span className="text-xs font-normal text-gray-400 ml-1">solicitado</span>
-                              </span>
-                            </div>
+                  {errores.items && (
+                    <p className="text-red-500 text-sm mb-2 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />{errores.items}
+                    </p>
+                  )}
 
-                            {tieneDevol && (
-                              <div className="mt-2 pt-2 border-t border-yellow-200 space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="flex items-center gap-1 text-red-600 font-medium">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    Devolución
-                                  </span>
-                                  <span className="text-red-600 font-bold">{cantDev.toFixed(2)} KG</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="flex items-center gap-1 text-green-600 font-medium">
-                                    <CheckCircle className="w-3 h-3" />
-                                    Ingresado al inventario
-                                  </span>
-                                  <span className="text-green-600 font-bold">{cantIngreso.toFixed(2)} KG</span>
-                                </div>
-                                {item.observacion_devolucion && (
-                                  <div className="mt-1 p-2 bg-orange-50 rounded border border-orange-200">
-                                    <p className="text-xs text-orange-800">
-                                      <span className="font-medium">Razón devolución:</span>{" "}
-                                      {item.observacion_devolucion}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                    {formulario.items.map((item, idx) => {
+                      const cant     = parseFloat(item.cantidad_solicitada) || 0;
+                      const pct      = cant / STOCK_MAX;
+                      const cantCls  = pct >= 1
+                        ? "text-red-500 font-semibold"
+                        : pct >= 0.85 ? "text-amber-500" : "text-gray-400";
+
+                      return (
+                        <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+                          {/* Selector materia prima */}
+                          <div className="flex gap-2">
+                            <select
+                              value={item.id_materia}
+                              onChange={(e) => actualizarItem(idx, "id_materia", e.target.value)}
+                              className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                                errores[`item_materia_${idx}`] ? "border-red-500 bg-red-50" : "border-gray-300 bg-white"
+                              }`}>
+                              <option value="">Seleccione materia prima</option>
+                              {materias.map((m) => (
+                                <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
+                              ))}
+                            </select>
+                            {formulario.items.length > 1 && (
+                              <button type="button" onClick={() => eliminarItem(idx)}
+                                className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                          {errores[`item_materia_${idx}`] && (
+                            <p className="text-red-500 text-xs flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                              {errores[`item_materia_${idx}`]}
+                            </p>
+                          )}
+
+                          {/* Cantidad */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-medium text-gray-600">Cantidad (KG) *</label>
+                              {item.cantidad_solicitada !== "" && (
+                                <span className={`text-xs ${cantCls}`}>
+                                  {cant.toLocaleString("es-CO", { maximumFractionDigits: 2 })} / {STOCK_MAX.toLocaleString("es-CO")} KG
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              max={STOCK_MAX}
+                              value={item.cantidad_solicitada}
+                              onChange={(e) => actualizarItem(idx, "cantidad_solicitada", e.target.value)}
+                              placeholder="Ej: 350.00"
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                                errores[`item_cantidad_${idx}`] ? "border-red-500 bg-red-50 focus:ring-red-500" : "border-gray-300"
+                              }`}
+                            />
+                            {errores[`item_cantidad_${idx}`] && (
+                              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                                {errores[`item_cantidad_${idx}`]}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">
+                              Hasta 2 decimales — máx. {STOCK_MAX.toLocaleString("es-CO")} KG
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
               </div>
             );
           })

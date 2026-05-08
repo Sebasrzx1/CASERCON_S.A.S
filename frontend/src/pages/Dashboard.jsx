@@ -246,8 +246,9 @@ export default function Dashboard() {
         </div>
         <div className="p-6 space-y-3">
           {materias
-            .filter((m) => m.estadoStock === "Bajo" || m.estadoStock === "Critico")
-            .map((materia) => (
+          .filter((m) => m.estado === "Activo") 
+          .filter((m) => m.estadoStock === "Bajo" || m.estadoStock === "Critico")
+          .map((materia) => (
               <div
                 key={materia.id_materia}
                 className={`flex justify-between p-3 rounded-lg border ${getStatusColor(materia.estadoStock)}`}

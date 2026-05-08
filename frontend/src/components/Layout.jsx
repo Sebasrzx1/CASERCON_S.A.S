@@ -124,7 +124,7 @@ export function Layout() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-[1800px]">
         <div className="flex gap-6">
           {/* Sidebar */}
-          <aside className="w-64 flex-shrink-0">
+          <aside className="sticky top-6 h-fit w-64">
             <nav className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
