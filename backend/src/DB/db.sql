@@ -111,12 +111,11 @@ CREATE TABLE lotes (
     stock_inicial DECIMAL(12,2) NOT NULL,
     stock_restante DECIMAL(12,2) NOT NULL,
     fecha_ingreso DATETIME DEFAULT CURRENT_TIMESTAMP,
-    estado ENUM('activo','agotado') DEFAULT 'activo',
+    estado ENUM('activo', 'agotado', 'en_devolucion') DEFAULT 'activo',
     FOREIGN KEY (id_materia) REFERENCES materias_primas(id_materia),
     FOREIGN KEY (id_detalle_pedido) REFERENCES detalle_pedidos(id_detalle_pedido),
     UNIQUE(id_materia, numero_lote)
 );
-
 -- ==================================================================
 --         TABLAS: Recetas y ordenes de produccion
 -- ==================================================================

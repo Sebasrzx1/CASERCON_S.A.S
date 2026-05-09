@@ -610,12 +610,11 @@ export default function PedidosPage() {
                           className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                           <Edit className="w-4 h-4" /> Editar
                         </button>
-                        {!esDevolucion && (
                           <button onClick={() => { setPedidoActivo(pedido); setModalCancelar(true); }}
                             className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
                             <Trash2 className="w-4 h-4" /> Cancelar
                           </button>
-                        )}
+                        
                       </>
                     )}
                   </div>
