@@ -12,10 +12,18 @@ import {
   BarChart2,
   Package,
   Printer,
+  AlertTriangle,
+  Truck,
+  Factory,
+  ClipboardList,
+  ArrowLeftRight,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 
 const API = "http://localhost:3000/api/movimientos";
 const API_MP = "http://localhost:3000/api/materias-primas";
+const API_REPORTES = "http://localhost:3000/api/reportes";
 
 export default function Movimientos() {
   const { isAdministrador, fetchConAuth } = useAuth();
@@ -51,9 +59,9 @@ export default function Movimientos() {
     fecha_inicio: "",
     fecha_fin: "",
   });
-  const [resultadoReporte, setResultadoReporte] = useState([]);
-  const [reporteGenerado, setReporteGenerado] = useState(false);
+  const [resultadoReporte, setResultadoReporte] = useState(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
+  const [pasoReporte, setPasoReporte] = useState(1); // 1=seleccionar, 2=resultado
 
   // ── Carga de datos
   const cargarMovimientos = async () => {
@@ -244,6 +252,52 @@ export default function Movimientos() {
   };
 
   // ── Reportes
+  const REPORTES_CONFIG = [
+    {
+      key: "inventario",
+      icono: <Package className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "blue",
+      title: "Estado de Inventario",
+      desc: "Stock actual, niveles críticos y cobertura por materia prima",
+      sinFechas: true,
+    },
+    {
+      key: "consumo",
+      icono: <TrendingDown className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "red",
+      title: "Consumo por Materia Prima",
+      desc: "Ranking de materias más gastadas con promedio y tendencia",
+    },
+    {
+      key: "balance",
+      icono: <ArrowLeftRight className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "purple",
+      title: "Entradas vs Salidas",
+      desc: "Balance neto por categoría: ¿se repone lo que se consume?",
+    },
+    {
+      key: "proveedores",
+      icono: <Truck className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "yellow",
+      title: "Actividad por Proveedor",
+      desc: "Órdenes, KG recibidos, devoluciones y % de problemas",
+    },
+    {
+      key: "produccion",
+      icono: <Factory className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "green",
+      title: "Rendimiento de Producción",
+      desc: "Órdenes completadas, KG producidos y tiempos operativos",
+    },
+    {
+      key: "ejecutivo",
+      icono: <ClipboardList className="w-5 h-5 mt-0.5 flex-shrink-0" />,
+      color: "blue",
+      title: "Reporte Ejecutivo General",
+      desc: "Combina inventario + balance + consumo + producción + proveedores",
+    },
+  ];
+
   const generarReporte = async () => {
     if (!tipoReporte) {
       toast.error("Selecciona un tipo de reporte");
@@ -254,26 +308,21 @@ export default function Movimientos() {
       filtroReporte.fecha_fin &&
       filtroReporte.fecha_inicio > filtroReporte.fecha_fin
     ) {
-      toast.error(
-        "La fecha de inicio no puede ser posterior a la fecha de fin",
-      );
+      toast.error("La fecha de inicio no puede ser posterior a la fecha de fin");
       return;
     }
     setCargandoReporte(true);
     try {
       const params = new URLSearchParams();
-      if (filtroReporte.fecha_inicio)
-        params.append("fecha_inicio", filtroReporte.fecha_inicio);
-      if (filtroReporte.fecha_fin)
-        params.append("fecha_fin", filtroReporte.fecha_fin);
-      if (tipoReporte === "por_tipo_entrada") params.append("tipo", "Entrada");
-      if (tipoReporte === "por_tipo_salida") params.append("tipo", "Salida");
+      if (filtroReporte.fecha_inicio) params.append("fecha_inicio", filtroReporte.fecha_inicio);
+      if (filtroReporte.fecha_fin) params.append("fecha_fin", filtroReporte.fecha_fin);
 
-      const res = await fetchConAuth(`${API}/filtros?${params}`);
+      const endpoint = `${API_REPORTES}/${tipoReporte}?${params}`;
+      const res = await fetchConAuth(endpoint);
       if (!res) return;
       const data = await res.json();
-      setResultadoReporte(Array.isArray(data.data) ? data.data : []);
-      setReporteGenerado(true);
+      setResultadoReporte(data.data);
+      setPasoReporte(2);
     } catch {
       toast.error("Error al generar reporte");
     } finally {
@@ -281,84 +330,449 @@ export default function Movimientos() {
     }
   };
 
+  const abrirModalReportes = () => {
+    setModalReportes(true);
+    setPasoReporte(1);
+    setTipoReporte("");
+    setResultadoReporte(null);
+    setFiltroReporte({ fecha_inicio: "", fecha_fin: "" });
+  };
+
+  const volverPaso1 = () => {
+    setPasoReporte(1);
+    setResultadoReporte(null);
+  };
+
+  // ── Contadores de resumen para el paso 2
+  const getResumenReporte = () => {
+    if (!resultadoReporte) return null;
+    const cfg = REPORTES_CONFIG.find(r => r.key === tipoReporte);
+    const titulo = cfg?.title || "Reporte";
+
+    if (tipoReporte === "ejecutivo") {
+      return { titulo, registros: "Reporte combinado", esEjecutivo: true };
+    }
+    const arr = Array.isArray(resultadoReporte) ? resultadoReporte : [];
+    return { titulo, registros: arr.length };
+  };
+
+  // ── Renderizar preview de resultados según tipo
+  const renderPreviewTabla = () => {
+    if (!resultadoReporte) return null;
+    const datos = Array.isArray(resultadoReporte) ? resultadoReporte : [];
+
+    if (tipoReporte === "inventario") {
+      const criticos = datos.filter(m => m.estado_stock === "Critico");
+      const bajos = datos.filter(m => m.estado_stock === "Bajo");
+      const suficientes = datos.filter(m => m.estado_stock === "Suficiente");
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-red-700">{criticos.length}</p>
+              <p className="text-xs text-red-600">Críticos</p>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-yellow-700">{bajos.length}</p>
+              <p className="text-xs text-yellow-600">Bajos</p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-green-700">{suficientes.length}</p>
+              <p className="text-xs text-green-600">Suficientes</p>
+            </div>
+          </div>
+          {criticos.length > 0 && (
+            <div className="border border-red-200 rounded-lg overflow-hidden">
+              <div className="bg-red-50 px-3 py-2 border-b border-red-200">
+                <p className="text-xs font-semibold text-red-700">⚠️ Materias en estado CRÍTICO</p>
+              </div>
+              <div className="max-h-32 overflow-y-auto">
+                {criticos.map(m => (
+                  <div key={m.id_materia} className="flex justify-between px-3 py-1.5 text-xs border-b border-red-100 last:border-0">
+                    <span className="text-gray-800 font-medium">{m.nombre}</span>
+                    <span className="text-red-700 font-bold">{m.stock_actual} / {m.stock_min} KG</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (tipoReporte === "consumo") {
+      const top5 = datos.slice(0, 5);
+      return (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500">Top 5 materias más consumidas</p>
+          {top5.map((m, i) => (
+            <div key={m.id_materia} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+              <span className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-900 truncate">{m.nombre}</p>
+                <p className="text-xs text-gray-500">{m.total_movimientos} movimientos</p>
+              </div>
+              <span className="text-xs font-bold text-red-700">{Number(m.total_consumido).toFixed(1)} KG</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (tipoReporte === "balance") {
+      const totalEntradas = datos.reduce((s, b) => s + Number(b.total_entradas), 0);
+      const totalSalidas = datos.reduce((s, b) => s + Number(b.total_salidas), 0);
+      const balanceNeto = datos.reduce((s, b) => s + Number(b.balance_neto), 0);
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+              <p className="text-lg font-bold text-green-700">{totalEntradas.toFixed(0)}</p>
+              <p className="text-xs text-green-600">KG Entradas</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <p className="text-lg font-bold text-red-700">{totalSalidas.toFixed(0)}</p>
+              <p className="text-xs text-red-600">KG Salidas</p>
+            </div>
+            <div className={`border rounded-lg p-3 text-center ${balanceNeto >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200"}`}>
+              <p className={`text-lg font-bold ${balanceNeto >= 0 ? "text-blue-700" : "text-orange-700"}`}>{balanceNeto >= 0 ? "+" : ""}{balanceNeto.toFixed(0)}</p>
+              <p className={`text-xs ${balanceNeto >= 0 ? "text-blue-600" : "text-orange-600"}`}>Balance Neto</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (tipoReporte === "proveedores") {
+      return (
+        <div className="space-y-2">
+          {datos.slice(0, 4).map(p => (
+            <div key={p.id_proveedor} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-900 truncate">{p.nombre_proveedor}{p.nombre_empresa ? ` — ${p.nombre_empresa}` : ""}</p>
+                <p className="text-xs text-gray-500">{p.total_ordenes} órdenes · {Number(p.total_kg_solicitado).toFixed(0)} KG</p>
+              </div>
+              {Number(p.porcentaje_devolucion) > 0 && (
+                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">{p.porcentaje_devolucion}% devol.</span>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (tipoReporte === "produccion") {
+      const completadas = datos.filter(p => p.estado === "Completada").length;
+      const pendientes = datos.filter(p => p.estado === "Pendiente").length;
+      const enProceso = datos.filter(p => p.estado === "En proceso").length;
+      const totalKg = datos.filter(p => p.estado === "Completada").reduce((s, p) => s + Number(p.cantidad_producir), 0);
+      return (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-green-700">{completadas}</p>
+            <p className="text-xs text-green-600">Completadas</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-blue-700">{totalKg.toFixed(0)}</p>
+            <p className="text-xs text-blue-600">KG Producidos</p>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-700">{pendientes}</p>
+            <p className="text-xs text-yellow-600">Pendientes</p>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-purple-700">{enProceso}</p>
+            <p className="text-xs text-purple-600">En Proceso</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (tipoReporte === "ejecutivo") {
+      const r = resultadoReporte;
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-600 mb-1">Inventario Crítico</p>
+              <p className="text-xl font-bold text-red-700">{r.resumenInventario?.criticos || 0} materias</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-600 mb-1">Balance Neto</p>
+              <p className="text-xl font-bold text-blue-700">{(r.resumenBalance?.balance_neto || 0).toFixed(0)} KG</p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-xs text-green-600 mb-1">Producción</p>
+              <p className="text-xl font-bold text-green-700">{r.resumenProduccion?.completadas || 0} completadas</p>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-600 mb-1">Proveedores</p>
+              <p className="text-xl font-bold text-yellow-700">{r.proveedores?.length || 0} activos</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>;
+  };
+
+  // ── IMPRIMIR REPORTE ─────────────────────────────────────────
   const imprimirReporte = () => {
-    const tipoLabel =
-      {
-        mas_gastadas: "Materias Primas Más Gastadas",
-        por_tipo_entrada: "Movimientos — Entradas",
-        por_tipo_salida: "Movimientos — Salidas",
-        resumen: "Resumen Completo de Movimientos",
-      }[tipoReporte] || "Informe de Movimientos";
+    if (!resultadoReporte) return;
+    const cfg = REPORTES_CONFIG.find(r => r.key === tipoReporte);
+    const titulo = cfg?.title || "Reporte";
+    const fechaDesde = filtroReporte.fecha_inicio
+      ? new Date(filtroReporte.fecha_inicio + "T00:00:00").toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })
+      : "Sin filtro";
+    const fechaHasta = filtroReporte.fecha_fin
+      ? new Date(filtroReporte.fecha_fin + "T00:00:00").toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })
+      : "Sin filtro";
 
-    const fechaDesde = filtroReporte.fecha_inicio || "Sin filtro";
-    const fechaHasta = filtroReporte.fecha_fin || "Sin filtro";
-
-    const filas = resultadoReporte
-      .map(
-        (m) => `
-      <tr>
-        <td>${new Date(m.fecha).toLocaleDateString("es-CO")}</td>
-        <td>${m.tipo_movimiento}</td>
-        <td>${m.nombre_materia}</td>
-        <td>${m.categoria}</td>
-        <td>${m.codigo_lote || "-"}</td>
-        <td>${parseFloat(m.cantidad).toFixed(2)} kg</td>
-        <td>${m.usuario}</td>
-        <td>${m.codigo_orden || "-"}</td>
-        <td>${m.observacion || "-"}</td>
-      </tr>
-    `,
-      )
-      .join("");
-
-    const html = `
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8"/>
-        <title>${tipoLabel}</title>
-        <style>
-          body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-          h1 { font-size: 18px; margin-bottom: 4px; }
-          .sub { color: #555; margin-bottom: 16px; font-size: 12px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          th { background: #1e3a5f; color: white; padding: 8px; text-align: left; font-size: 11px; }
-          td { padding: 6px 8px; border-bottom: 1px solid #ddd; font-size: 11px; }
-          tr:nth-child(even) { background: #f5f5f5; }
-          .sin-datos { text-align: center; padding: 20px; color: #888; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <h1>${tipoLabel} — Casercon S.A.S</h1>
-        <p class="sub">
-          Desde: <strong>${fechaDesde}</strong> &nbsp;|&nbsp;
-          Hasta: <strong>${fechaHasta}</strong> &nbsp;|&nbsp;
-          Total: <strong>${resultadoReporte.length}</strong> registros
-        </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th><th>Tipo</th><th>Materia Prima</th><th>Categoría</th>
-              <th>Lote</th><th>Cantidad</th><th>Usuario</th><th>Cód. Orden</th><th>Observación</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              resultadoReporte.length > 0
-                ? filas
-                : '<tr><td colspan="9" class="sin-datos">No hay datos para el período seleccionado</td></tr>'
-            }
-          </tbody>
-        </table>
-      </body>
-      </html>
+    const estilosBase = `
+      *{margin:0;padding:0;box-sizing:border-box;}
+      body{font-family:Arial,sans-serif;padding:20px;max-width:1100px;margin:0 auto;color:#111827;font-size:12px;}
+      .header{text-align:center;margin-bottom:24px;border-bottom:3px solid #FDD835;padding-bottom:16px;}
+      .header h1{color:#2d3748;font-size:26px;margin-bottom:4px;}
+      .header h2{color:#1e40af;font-size:16px;font-weight:normal;}
+      .section-title{background:#FDD835;color:#2d3748;padding:8px 12px;margin:16px 0 10px;font-size:13px;font-weight:bold;border-radius:4px;}
+      .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+      .info-item{padding:8px 12px;background:#f9fafb;border-left:4px solid #FDD835;border-radius:2px;}
+      .info-item label{font-size:10px;color:#6b7280;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px;}
+      .info-item span{font-size:13px;font-weight:600;color:#1f2937;}
+      .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
+      .stat-box{padding:12px;border-radius:6px;text-align:center;border:1px solid #e5e7eb;}
+      .stat-box .num{font-size:22px;font-weight:bold;display:block;}
+      .stat-box .lbl{font-size:10px;display:block;margin-top:2px;}
+      table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px;}
+      thead tr{background:#1e40af;color:white;}
+      thead th{padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;}
+      tbody td{padding:6px 10px;border-bottom:1px solid #e5e7eb;}
+      tbody tr:nth-child(even){background:#f9fafb;}
+      .total-row{background:#FDD835 !important;font-weight:bold;}
+      .total-row td{padding:8px 10px;color:#1f2937;}
+      .badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;}
+      .badge-critico{background:#fee2e2;color:#dc2626;}
+      .badge-bajo{background:#fef9c3;color:#a16207;}
+      .badge-suficiente{background:#dcfce7;color:#15803d;}
+      .badge-entrada{background:#dcfce7;color:#15803d;}
+      .badge-salida{background:#fee2e2;color:#dc2626;}
+      .badge-devolucion{background:#dbeafe;color:#1d4ed8;}
+      .badge-completada{background:#dcfce7;color:#15803d;}
+      .badge-pendiente{background:#fef9c3;color:#a16207;}
+      .badge-enproceso{background:#dbeafe;color:#1d4ed8;}
+      .firma{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:50px;}
+      .firma div{border-top:2px solid #9ca3af;padding-top:8px;text-align:center;font-size:12px;color:#6b7280;}
+      .footer{text-align:center;margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:10px;}
+      .print-btn{position:fixed;top:20px;right:20px;padding:10px 22px;background:#1e40af;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;display:flex;align-items:center;gap:8px;z-index:100;}
+      .print-btn:hover{background:#1e3a8a;}
+      .alerta{padding:10px;border-radius:6px;margin-bottom:12px;font-size:11px;}
+      .alerta-rojo{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;}
+      @media print{.print-btn{display:none;} body{padding:10px;}}
     `;
 
+    let cuerpoHTML = "";
+
+    // ── Inventario ──
+    if (tipoReporte === "inventario") {
+      const datos = resultadoReporte;
+      const criticos = datos.filter(m => m.estado_stock === "Critico");
+      const bajos = datos.filter(m => m.estado_stock === "Bajo");
+      const suficientes = datos.filter(m => m.estado_stock === "Suficiente");
+      const totalKg = datos.reduce((s, m) => s + Number(m.stock_actual), 0);
+
+      cuerpoHTML = `
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${criticos.length}</span><span class="lbl" style="color:#dc2626;">Críticos</span></div>
+          <div class="stat-box" style="background:#fefce8;border-color:#fde68a;"><span class="num" style="color:#a16207;">${bajos.length}</span><span class="lbl" style="color:#a16207;">Bajos</span></div>
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${suficientes.length}</span><span class="lbl" style="color:#15803d;">Suficientes</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${totalKg.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Total</span></div>
+        </div>
+        ${criticos.length > 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>${criticos.length} materia(s) en estado CRÍTICO</strong> requieren reabastecimiento inmediato.</div>` : ""}
+        <div class="section-title">Detalle de Inventario por Materia Prima</div>
+        <table>
+          <thead><tr><th>#</th><th>Materia Prima</th><th>Código</th><th>Categoría</th><th style="text-align:center">Stock Mín.</th><th style="text-align:center">Stock Actual</th><th style="text-align:center">Cobertura</th><th>Estado</th></tr></thead>
+          <tbody>
+            ${datos.map((m, i) => `<tr>
+              <td>${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td style="font-family:monospace;">${m.abreviacion}</td><td>${m.categoria}</td>
+              <td style="text-align:center;">${Number(m.stock_min).toFixed(0)} KG</td>
+              <td style="text-align:center;font-weight:bold;">${Number(m.stock_actual).toFixed(2)} KG</td>
+              <td style="text-align:center;">${m.porcentaje_cobertura}%</td>
+              <td><span class="badge badge-${m.estado_stock.toLowerCase()}">${m.estado_stock}</span></td>
+            </tr>`).join("")}
+            <tr class="total-row"><td colspan="4">TOTAL (${datos.length} materias)</td><td style="text-align:center;">${datos.reduce((s, m) => s + Number(m.stock_min), 0).toFixed(0)} KG</td><td style="text-align:center;">${totalKg.toFixed(2)} KG</td><td colspan="2">—</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    // ── Consumo ──
+    if (tipoReporte === "consumo") {
+      const datos = resultadoReporte;
+      const totalKg = datos.reduce((s, m) => s + Number(m.total_consumido), 0);
+      cuerpoHTML = `
+        <div class="section-title">Ranking de Consumo de Materias Primas</div>
+        <table>
+          <thead><tr><th>#</th><th>Materia Prima</th><th>Categoría</th><th style="text-align:center">Movimientos</th><th style="text-align:center">Total Consumido</th><th style="text-align:center">Promedio/Mov.</th><th>Primera Salida</th><th>Última Salida</th></tr></thead>
+          <tbody>
+            ${datos.map((m, i) => `<tr>
+              <td style="font-weight:bold;">${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td>${m.categoria}</td>
+              <td style="text-align:center;">${m.total_movimientos}</td>
+              <td style="text-align:center;font-weight:bold;color:#dc2626;">${Number(m.total_consumido).toFixed(2)} KG</td>
+              <td style="text-align:center;">${Number(m.promedio_por_movimiento).toFixed(2)} KG</td>
+              <td>${m.primera_salida ? new Date(m.primera_salida).toLocaleDateString("es-CO") : "—"}</td>
+              <td>${m.ultima_salida ? new Date(m.ultima_salida).toLocaleDateString("es-CO") : "—"}</td>
+            </tr>`).join("")}
+            <tr class="total-row"><td colspan="3">TOTAL (${datos.length} materias)</td><td style="text-align:center;">${datos.reduce((s, m) => s + Number(m.total_movimientos), 0)}</td><td style="text-align:center;">${totalKg.toFixed(2)} KG</td><td colspan="3">—</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    // ── Balance ──
+    if (tipoReporte === "balance") {
+      const datos = resultadoReporte;
+      const tE = datos.reduce((s, b) => s + Number(b.total_entradas), 0);
+      const tS = datos.reduce((s, b) => s + Number(b.total_salidas), 0);
+      const tD = datos.reduce((s, b) => s + Number(b.total_devoluciones), 0);
+      const tB = datos.reduce((s, b) => s + Number(b.balance_neto), 0);
+      cuerpoHTML = `
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${tE.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Entradas</span></div>
+          <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${tS.toFixed(0)}</span><span class="lbl" style="color:#dc2626;">KG Salidas</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${tD.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Devoluciones</span></div>
+          <div class="stat-box" style="background:${tB >= 0 ? "#f0fdf4" : "#fff7ed"};border-color:${tB >= 0 ? "#bbf7d0" : "#fed7aa"};"><span class="num" style="color:${tB >= 0 ? "#15803d" : "#c2410c"};">${tB >= 0 ? "+" : ""}${tB.toFixed(0)}</span><span class="lbl" style="color:${tB >= 0 ? "#15803d" : "#c2410c"};">Balance Neto KG</span></div>
+        </div>
+        ${tB < 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>Balance negativo:</strong> se está consumiendo ${Math.abs(tB).toFixed(0)} KG más de lo que entra. Revisar plan de reabastecimiento.</div>` : ""}
+        <div class="section-title">Balance por Categoría de Materia Prima</div>
+        <table>
+          <thead><tr><th>Categoría</th><th style="text-align:center">Entradas (KG)</th><th style="text-align:center">Salidas (KG)</th><th style="text-align:center">Devoluciones (KG)</th><th style="text-align:center">Balance Neto</th><th style="text-align:center">Movimientos</th></tr></thead>
+          <tbody>
+            ${datos.map(b => `<tr>
+              <td style="font-weight:600;">${b.categoria}</td>
+              <td style="text-align:center;color:#15803d;">${Number(b.total_entradas).toFixed(2)}</td>
+              <td style="text-align:center;color:#dc2626;">${Number(b.total_salidas).toFixed(2)}</td>
+              <td style="text-align:center;color:#1d4ed8;">${Number(b.total_devoluciones).toFixed(2)}</td>
+              <td style="text-align:center;font-weight:bold;color:${Number(b.balance_neto) >= 0 ? "#15803d" : "#c2410c"};">${Number(b.balance_neto) >= 0 ? "+" : ""}${Number(b.balance_neto).toFixed(2)}</td>
+              <td style="text-align:center;">${b.total_movimientos}</td>
+            </tr>`).join("")}
+            <tr class="total-row"><td>TOTAL</td><td style="text-align:center;">${tE.toFixed(2)}</td><td style="text-align:center;">${tS.toFixed(2)}</td><td style="text-align:center;">${tD.toFixed(2)}</td><td style="text-align:center;">${tB >= 0 ? "+" : ""}${tB.toFixed(2)}</td><td style="text-align:center;">${datos.reduce((s, b) => s + Number(b.total_movimientos), 0)}</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    // ── Proveedores ──
+    if (tipoReporte === "proveedores") {
+      const datos = resultadoReporte;
+      cuerpoHTML = `
+        <div class="section-title">Actividad por Proveedor</div>
+        <table>
+          <thead><tr><th>Proveedor</th><th>Empresa</th><th style="text-align:center">Órdenes</th><th style="text-align:center">Recibidas</th><th style="text-align:center">Pendientes</th><th style="text-align:center">KG Solicitados</th><th style="text-align:center">Devoluciones</th><th style="text-align:center">KG Devueltos</th><th style="text-align:center">% Devol.</th></tr></thead>
+          <tbody>
+            ${datos.map(p => `<tr>
+              <td style="font-weight:600;">${p.nombre_proveedor}</td><td>${p.nombre_empresa || "—"}</td>
+              <td style="text-align:center;">${p.total_ordenes}</td>
+              <td style="text-align:center;color:#15803d;">${p.ordenes_recibidas}</td>
+              <td style="text-align:center;color:#a16207;">${p.ordenes_pendientes}</td>
+              <td style="text-align:center;font-weight:bold;">${Number(p.total_kg_solicitado).toFixed(2)}</td>
+              <td style="text-align:center;color:#dc2626;">${p.total_devoluciones}</td>
+              <td style="text-align:center;color:#dc2626;">${Number(p.total_kg_devuelto).toFixed(2)}</td>
+              <td style="text-align:center;font-weight:bold;color:${Number(p.porcentaje_devolucion) > 10 ? "#dc2626" : Number(p.porcentaje_devolucion) > 0 ? "#a16207" : "#15803d"};">${p.porcentaje_devolucion}%</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+
+    // ── Producción ──
+    if (tipoReporte === "produccion") {
+      const datos = resultadoReporte;
+      const completadas = datos.filter(p => p.estado === "Completada");
+      const totalKg = completadas.reduce((s, p) => s + Number(p.cantidad_producir), 0);
+      cuerpoHTML = `
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${completadas.length}</span><span class="lbl" style="color:#15803d;">Completadas</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${datos.filter(p => p.estado === "En proceso").length}</span><span class="lbl" style="color:#1d4ed8;">En Proceso</span></div>
+          <div class="stat-box" style="background:#fefce8;border-color:#fde68a;"><span class="num" style="color:#a16207;">${datos.filter(p => p.estado === "Pendiente").length}</span><span class="lbl" style="color:#a16207;">Pendientes</span></div>
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${totalKg.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Producidos</span></div>
+        </div>
+        <div class="section-title">Detalle de Órdenes de Producción</div>
+        <table>
+          <thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">KG</th><th>Estado</th><th>Creado por</th><th>Operario</th><th>Fecha Creación</th><th>Fecha Fin</th><th style="text-align:center">Horas</th></tr></thead>
+          <tbody>
+            ${datos.map(p => `<tr>
+              <td style="font-family:monospace;font-weight:bold;">${p.codigo_orden || "—"}</td>
+              <td style="font-weight:600;">${p.nombre_producto}</td>
+              <td style="text-align:center;font-weight:bold;">${Number(p.cantidad_producir).toFixed(2)}</td>
+              <td><span class="badge badge-${p.estado === "Completada" ? "completada" : p.estado === "Pendiente" ? "pendiente" : "enproceso"}">${p.estado}</span></td>
+              <td>${p.usuario_creador}</td><td>${p.usuario_fin || p.usuario_inicio || "—"}</td>
+              <td>${new Date(p.fecha_creacion).toLocaleDateString("es-CO")}</td>
+              <td>${p.fecha_finalizacion ? new Date(p.fecha_finalizacion).toLocaleDateString("es-CO") : "—"}</td>
+              <td style="text-align:center;">${p.horas_produccion != null ? p.horas_produccion + "h" : "—"}</td>
+            </tr>`).join("")}
+            <tr class="total-row"><td colspan="2">TOTAL (${datos.length} órdenes)</td><td style="text-align:center;">${datos.reduce((s, p) => s + Number(p.cantidad_producir), 0).toFixed(2)} KG</td><td colspan="6">—</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    // ── Ejecutivo ──
+    if (tipoReporte === "ejecutivo") {
+      const r = resultadoReporte;
+      const ri = r.resumenInventario;
+      const rb = r.resumenBalance;
+      const rp = r.resumenProduccion;
+      cuerpoHTML = `
+        <div class="section-title">1. Resumen de Inventario</div>
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${ri.criticos}</span><span class="lbl" style="color:#dc2626;">Críticos</span></div>
+          <div class="stat-box" style="background:#fefce8;border-color:#fde68a;"><span class="num" style="color:#a16207;">${ri.bajos}</span><span class="lbl" style="color:#a16207;">Bajos</span></div>
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${ri.suficientes}</span><span class="lbl" style="color:#15803d;">Suficientes</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${ri.total_kg.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Total</span></div>
+        </div>
+        ${ri.criticos > 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>${ri.criticos} materia(s) en estado CRÍTICO</strong> — se recomienda generar órdenes de recepción inmediata.</div>` : ""}
+        ${r.inventarioCriticos.length > 0 ? `<table><thead><tr><th>Materia Crítica</th><th style="text-align:center">Stock Actual</th><th style="text-align:center">Stock Mínimo</th><th style="text-align:center">Cobertura</th></tr></thead><tbody>${r.inventarioCriticos.map(m => `<tr><td style="font-weight:600;">${m.nombre}</td><td style="text-align:center;color:#dc2626;font-weight:bold;">${Number(m.stock_actual).toFixed(2)} KG</td><td style="text-align:center;">${Number(m.stock_min).toFixed(0)} KG</td><td style="text-align:center;">${m.porcentaje_cobertura}%</td></tr>`).join("")}</tbody></table>` : ""}
+
+        <div class="section-title">2. Balance de Inventario (Entradas vs Salidas)</div>
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rb.total_entradas.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Entradas</span></div>
+          <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${rb.total_salidas.toFixed(0)}</span><span class="lbl" style="color:#dc2626;">KG Salidas</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${rb.total_devoluciones.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Devoluciones</span></div>
+          <div class="stat-box" style="background:${rb.balance_neto >= 0 ? "#f0fdf4" : "#fff7ed"};border-color:${rb.balance_neto >= 0 ? "#bbf7d0" : "#fed7aa"};"><span class="num" style="color:${rb.balance_neto >= 0 ? "#15803d" : "#c2410c"};">${rb.balance_neto >= 0 ? "+" : ""}${rb.balance_neto.toFixed(0)}</span><span class="lbl" style="color:${rb.balance_neto >= 0 ? "#15803d" : "#c2410c"};">Balance Neto</span></div>
+        </div>
+        <table><thead><tr><th>Categoría</th><th style="text-align:center">Entradas</th><th style="text-align:center">Salidas</th><th style="text-align:center">Balance</th></tr></thead><tbody>${r.balancePorCategoria.map(b => `<tr><td>${b.categoria}</td><td style="text-align:center;color:#15803d;">${Number(b.total_entradas).toFixed(0)}</td><td style="text-align:center;color:#dc2626;">${Number(b.total_salidas).toFixed(0)}</td><td style="text-align:center;font-weight:bold;color:${Number(b.balance_neto) >= 0 ? "#15803d" : "#c2410c"};">${Number(b.balance_neto) >= 0 ? "+" : ""}${Number(b.balance_neto).toFixed(0)}</td></tr>`).join("")}</tbody></table>
+
+        <div class="section-title">3. Top 10 — Materias Más Consumidas</div>
+        <table><thead><tr><th>#</th><th>Materia Prima</th><th style="text-align:center">Movimientos</th><th style="text-align:center">Total Consumido</th><th style="text-align:center">Promedio/Mov.</th></tr></thead><tbody>${r.top10Consumo.map((m, i) => `<tr><td style="font-weight:bold;">${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td style="text-align:center;">${m.total_movimientos}</td><td style="text-align:center;font-weight:bold;color:#dc2626;">${Number(m.total_consumido).toFixed(2)} KG</td><td style="text-align:center;">${Number(m.promedio_por_movimiento).toFixed(2)} KG</td></tr>`).join("")}</tbody></table>
+
+        <div class="section-title">4. Producción</div>
+        <div class="stat-grid">
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rp.completadas}</span><span class="lbl" style="color:#15803d;">Completadas</span></div>
+          <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${rp.en_proceso}</span><span class="lbl" style="color:#1d4ed8;">En Proceso</span></div>
+          <div class="stat-box" style="background:#fefce8;border-color:#fde68a;"><span class="num" style="color:#a16207;">${rp.pendientes}</span><span class="lbl" style="color:#a16207;">Pendientes</span></div>
+          <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rp.total_kg_producidos.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Producidos</span></div>
+        </div>
+
+        <div class="section-title">5. Actividad de Proveedores</div>
+        <table><thead><tr><th>Proveedor</th><th>Empresa</th><th style="text-align:center">Órdenes</th><th style="text-align:center">KG Solicit.</th><th style="text-align:center">KG Devueltos</th><th style="text-align:center">% Devol.</th></tr></thead><tbody>${r.proveedores.map(p => `<tr><td style="font-weight:600;">${p.nombre_proveedor}</td><td>${p.nombre_empresa || "—"}</td><td style="text-align:center;">${p.total_ordenes}</td><td style="text-align:center;font-weight:bold;">${Number(p.total_kg_solicitado).toFixed(0)}</td><td style="text-align:center;color:#dc2626;">${Number(p.total_kg_devuelto).toFixed(0)}</td><td style="text-align:center;font-weight:bold;color:${Number(p.porcentaje_devolucion) > 10 ? "#dc2626" : "#15803d"};">${p.porcentaje_devolucion}%</td></tr>`).join("")}</tbody></table>
+      `;
+    }
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${titulo} — CASERCON S.A.S</title><style>${estilosBase}</style></head>
+      <body>
+        <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
+        <div class="header"><h1>CASERCON S.A.S</h1><h2>${titulo}</h2></div>
+        <div class="section-title">Información del Reporte</div>
+        <div class="info-grid">
+          <div class="info-item"><label>Tipo de Reporte</label><span>${titulo}</span></div>
+          <div class="info-item"><label>Desde</label><span>${fechaDesde}</span></div>
+          <div class="info-item"><label>Hasta</label><span>${fechaHasta}</span></div>
+        </div>
+        ${cuerpoHTML}
+        <div class="firma"><div>Firma Operario / Receptor</div><div>Firma Administrador</div></div>
+        <div class="footer"><p>CASERCON S.A.S — Fabricante de Pinturas</p><p>Impreso el ${new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p></div>
+      </body></html>`;
+
     const ventana = window.open("", "_blank");
+    if (!ventana) return;
     ventana.document.write(html);
     ventana.document.close();
-    ventana.print();
   };
 
   // ── Badge tipo movimiento
@@ -421,12 +835,7 @@ export default function Movimientos() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => {
-              setModalReportes(true);
-              setReporteGenerado(false);
-              setTipoReporte("");
-              setResultadoReporte([]);
-            }}
+            onClick={abrirModalReportes}
             className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium"
           >
             <BarChart2 className="w-5 h-5" /> Generar Reportes
@@ -488,15 +897,20 @@ export default function Movimientos() {
           ))}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por materia, lote o usuario..."
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Buscar
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por materia, lote o usuario..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">
@@ -788,231 +1202,148 @@ export default function Movimientos() {
       {/* Modal Generar Reportes */}
       {modalReportes && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
-            <div className="flex items-center gap-3 p-6 border-b border-gray-200">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-5 border-b border-gray-200 flex-shrink-0">
+              {pasoReporte === 2 && (
+                <button onClick={volverPaso1} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              )}
               <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center">
                 <BarChart2 className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 text-lg">
-                  Generar Reportes de Movimientos
+                  {pasoReporte === 1 ? "Reportes Estratégicos" : getResumenReporte()?.titulo || "Resultado"}
                 </h2>
                 <p className="text-xs text-gray-500">
-                  Seleccione el tipo de reporte y el rango de fechas
+                  {pasoReporte === 1 ? "Seleccione tipo de reporte y rango de fechas" : "Vista previa del reporte generado"}
                 </p>
               </div>
-              <button
-                onClick={() => setModalReportes(false)}
-                className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
-              >
+              <button onClick={() => setModalReportes(false)} className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              {/* Tipo de reporte */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Tipo de Reporte
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    {
-                      key: "mas_gastadas",
-                      icono: (
-                        <TrendingDown className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                      ),
-                      color: "red",
-                      title: "Materias Primas Más Gastadas",
-                      desc: "Ranking de materias por cantidad de salidas",
-                    },
-                    {
-                      key: "por_tipo_salida",
-                      icono: (
-                        <BarChart2 className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                      ),
-                      color: "blue",
-                      title: "Movimientos por Tipo",
-                      desc: "Análisis de entradas, salidas y devoluciones",
-                    },
-                    {
-                      key: "resumen",
-                      icono: (
-                        <FileText className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                      ),
-                      color: "green",
-                      title: "Resumen Completo",
-                      desc: "Vista general con todas las estadísticas",
-                    },
-                  ].map(({ key, icono, color, title, desc }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setTipoReporte(key)}
-                      className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
-                        tipoReporte === key
-                          ? `border-${color}-500 bg-${color}-50`
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <span
-                        className={
-                          tipoReporte === key
-                            ? `text-${color}-600`
-                            : "text-gray-400"
-                        }
-                      >
-                        {icono}
-                      </span>
-                      <div>
-                        <p
-                          className={`text-sm font-semibold ${
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* ═══ PASO 1: Seleccionar tipo ═══ */}
+              {pasoReporte === 1 && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Tipo de Reporte</label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {REPORTES_CONFIG.map(({ key, icono, color, title, desc }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setTipoReporte(key)}
+                          className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${
                             tipoReporte === key
-                              ? `text-${color}-700`
-                              : "text-gray-700"
+                              ? key === "ejecutivo"
+                                ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 ring-1 ring-blue-200"
+                                : `border-${color}-500 bg-${color}-50`
+                              : key === "ejecutivo"
+                                ? "border-gray-200 hover:border-blue-300 bg-gradient-to-br from-gray-50 to-slate-50"
+                                : "border-gray-200 hover:border-gray-300"
                           }`}
                         >
-                          {title}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rango de fechas */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Rango de Fechas (Opcional)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Fecha Inicio
-                    </label>
-                    <input
-                      type="date"
-                      value={filtroReporte.fecha_inicio}
-                      onChange={(e) =>
-                        setFiltroReporte((prev) => ({
-                          ...prev,
-                          fecha_inicio: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Fecha Fin
-                    </label>
-                    <input
-                      type="date"
-                      value={filtroReporte.fecha_fin}
-                      onChange={(e) =>
-                        setFiltroReporte((prev) => ({
-                          ...prev,
-                          fecha_fin: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Deje las fechas en blanco para incluir todos los movimientos
-                </p>
-              </div>
-
-              {/* Resultado preview */}
-              {reporteGenerado && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-b border-gray-200">
-                    <span className="text-sm font-medium text-gray-700">
-                      {resultadoReporte.length} registro(s) encontrado(s)
-                    </span>
-                    {resultadoReporte.length > 0 && (
-                      <button
-                        onClick={imprimirReporte}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
-                      >
-                        <Printer className="w-4 h-4" /> Imprimir / Exportar PDF
-                      </button>
-                    )}
-                  </div>
-                  {resultadoReporte.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-gray-500 text-sm">
-                      No hay datos para el período y tipo seleccionado
+                          <span className={tipoReporte === key ? `text-${color}-600` : "text-gray-400"}>
+                            {icono}
+                          </span>
+                          <div>
+                            <p className={`text-sm font-semibold ${
+                              tipoReporte === key ? `text-${color}-700` : "text-gray-700"
+                            }`}>{title}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                          </div>
+                          {tipoReporte === key && (
+                            <ChevronRight className={`w-4 h-4 ml-auto mt-0.5 flex-shrink-0 text-${color}-500`} />
+                          )}
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto max-h-48">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            {[
-                              "Fecha",
-                              "Tipo",
-                              "Materia Prima",
-                              "Cantidad",
-                              "Usuario",
-                            ].map((col) => (
-                              <th
-                                key={col}
-                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-                              >
-                                {col}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {resultadoReporte.map((m) => (
-                            <tr
-                              key={m.id_movimiento}
-                              className="hover:bg-gray-50"
-                            >
-                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap text-xs">
-                                {new Date(m.fecha).toLocaleDateString("es-CO")}
-                              </td>
-                              <td className="px-3 py-2">
-                                {badgeTipo(m.tipo_movimiento)}
-                              </td>
-                              <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap text-xs">
-                                {m.nombre_materia}
-                              </td>
-                              <td className="px-3 py-2 font-medium whitespace-nowrap text-xs">
-                                {parseFloat(m.cantidad).toFixed(2)} kg
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap text-xs">
-                                {m.usuario}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  </div>
+
+                  {/* Fechas — se ocultan si el reporte no necesita fechas */}
+                  {tipoReporte && !REPORTES_CONFIG.find(r => r.key === tipoReporte)?.sinFechas && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Rango de Fechas (Opcional)</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fecha Inicio</label>
+                          <input
+                            type="date"
+                            value={filtroReporte.fecha_inicio}
+                            onChange={(e) => setFiltroReporte(prev => ({ ...prev, fecha_inicio: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fecha Fin</label>
+                          <input
+                            type="date"
+                            value={filtroReporte.fecha_fin}
+                            onChange={(e) => setFiltroReporte(prev => ({ ...prev, fecha_fin: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">Deje en blanco para incluir todos los registros</p>
                     </div>
                   )}
-                </div>
+
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={() => setModalReportes(false)}
+                      className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cerrar
+                    </button>
+                    <button
+                      onClick={generarReporte}
+                      disabled={cargandoReporte || !tipoReporte}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                    >
+                      {cargandoReporte ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Generando...</>
+                      ) : (
+                        <><BarChart2 className="w-4 h-4" /> Generar Reporte</>
+                      )}
+                    </button>
+                  </div>
+                </>
               )}
 
-              {/* Botones */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setModalReportes(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Cerrar
-                </button>
-                <button
-                  onClick={generarReporte}
-                  disabled={cargandoReporte || !tipoReporte}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                >
-                  <BarChart2 className="w-4 h-4" />
-                  {cargandoReporte ? "Generando..." : "Generar Reporte"}
-                </button>
-              </div>
+              {/* ═══ PASO 2: Resultado ═══ */}
+              {pasoReporte === 2 && resultadoReporte && (
+                <>
+                  {/* Preview de datos */}
+                  {renderPreviewTabla()}
+
+                  {/* Botones de acción */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={volverPaso1}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      <ArrowLeft className="w-4 h-4" /> Volver
+                    </button>
+                    <button
+                      onClick={imprimirReporte}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium"
+                    >
+                      <Printer className="w-4 h-4" /> Imprimir / Exportar PDF
+                    </button>
+                    <button
+                      onClick={() => setModalReportes(false)}
+                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -226,13 +226,25 @@ const movimientosModel = {
       const numero = String(countRows[0].total + 1).padStart(3, "0");
       const codigo = `OD-${numero}-${dd}${mm}${yyyy}`;
 
-      // 4. Crear pedido de devolución
+      // 4. Buscar el proveedor real del lote (lote → detalle_pedido → pedido compra → proveedor)
+      const [provRows] = await conn.execute(
+        `SELECT p.id_proveedor
+         FROM lotes l
+         INNER JOIN detalle_pedidos dp ON l.id_detalle_pedido = dp.id_detalle_pedido
+         INNER JOIN pedidos p ON dp.id_pedido = p.id_pedido AND p.tipo_pedido = 'compra'
+         WHERE l.id_lote = ?`,
+        [id_lote],
+      );
+      // Si el lote vino de un pedido de compra, usar ese proveedor; si no, usar proveedor 1 por defecto
+      const id_proveedor_real = provRows.length > 0 ? provRows[0].id_proveedor : 1;
+
+      // 5. Crear pedido de devolución con el proveedor real
       const [pedidoResult] = await conn.execute(
         `INSERT INTO pedidos
          (id_proveedor, no_orden_compra, tipo_pedido, observaciones, estado, id_usuario_creador)
        VALUES (?, ?, 'devolucion', ?, 'pendiente', ?)`,
         [
-          1,
+          id_proveedor_real,
           codigo,
           observacion && observacion.trim() !== "" ? observacion.trim() : null,
           id_usuario,

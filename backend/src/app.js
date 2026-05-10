@@ -40,6 +40,7 @@ const proveedoresRoutes = require('./routes/proveedoresRoutes')
 const userRoutes = require('./routes/userRoutes')
 const produccionRoutes = require('./routes/produccionRoutes')
 const pedidosRoutes = require("./routes/pedidosRoutes");
+const reportesRoutes = require('./routes/reportesRoutes'); // Rutas para los reportes estratégicos
 
 // Ruta de autenticacion para los usuarios.
 app.use('/api/auth', atuhRoutes)
@@ -64,6 +65,9 @@ app.use('/api/produccion', produccionRoutes)
 
 //Ruta para pedidos
 app.use("/api/pedidos", pedidosRoutes);
+
+//Ruta para reportes estratégicos (inventario, consumo, balance, proveedores, producción, ejecutivo)
+app.use('/api/reportes', reportesRoutes);
 
 //Manejo de rutas no encontradas (404)
 app.all(/(.*)/, (req, res, next)=>{
