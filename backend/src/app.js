@@ -4,7 +4,6 @@ helmet = require("helmet"); //Helmet es un middleware esencial para Node.js (esp
 const path = require('path');
 const AppError = require('./errors/AppError');
 const globalErrorHandler = require('./middlewares/errorHandler');
-require('dotenv').config()
 //Le decimos que nuestro archivo app va a trabajar sobre express
 const app = express();
 
@@ -12,7 +11,7 @@ const app = express();
 //Configurar CORS para permitir acceso desde angular y react
 app.use(
   cors({
-    origin: ["http://localhost:4200", "http://localhost:5173"],
+    origin: process.env.FRONTEND_URL,
     credentials: true,
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

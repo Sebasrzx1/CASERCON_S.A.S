@@ -1,10 +1,20 @@
-express = require("express");
+const express = require("express");
+const path = require("path");
 
-app = require('./src/app');
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : ".env.development";
 
-dotenv = require("dotenv").config();
+require("dotenv").config({
+  path: path.resolve(__dirname, envFile),
+});
 
 const PORT = process.env.PORT;
+
+console.log("Env:", process.env.NODE_ENV);
+
+const app = require("./src/app");
 
 app.listen(PORT, () =>
   console.log(
@@ -18,5 +28,3 @@ app.listen(PORT, () =>
         `,
   ),
 );
-
-
