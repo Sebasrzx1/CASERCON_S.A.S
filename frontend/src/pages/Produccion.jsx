@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
+import API_URL from "../service/api";
 
 export default function ProduccionPage() {
   const { isAdministrador, user } = useAuth();
@@ -84,7 +85,7 @@ export default function ProduccionPage() {
     try {
       setLoading(true);
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion`,
+        `${API_URL}/produccion`,
       );
       if (!res) return; // fue inhabilitado, ya lo redirigió
 
@@ -100,7 +101,7 @@ export default function ProduccionPage() {
 
   const fetchRecetas = async () => {
     try {
-      const res = await fetchConAuth(`${import.meta.env.VITE_API_URL}/recetas`);
+      const res = await fetchConAuth(`${API_URL}/recetas`);
       if (!res) return;
       const data = await res.json();
       setRecetas(Array.isArray(data.data) ? data.data : []);
@@ -112,7 +113,7 @@ export default function ProduccionPage() {
   const fetchMateriasPrimas = async () => {
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/materias-primas`,
+        `${API_URL}/materias-primas`,
       );
       if (!res) return;
       const data = await res.json();
@@ -125,7 +126,7 @@ export default function ProduccionPage() {
   const fetchOperarios = async () => {
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/operarios`,
+        `${API_URL}/produccion/operarios`,
       );
       if (!res) return;
       const data = await res.json();
@@ -167,7 +168,7 @@ export default function ProduccionPage() {
     const timeout = setTimeout(async () => {
       try {
         const res = await fetchConAuth(
-          `${import.meta.env.VITE_API_URL}/produccion/verificar-stock?id_receta=${id_receta}&cantidad_producir=${cantidad_producir}`,
+          `${API_URL}/produccion/verificar-stock?id_receta=${id_receta}&cantidad_producir=${cantidad_producir}`,
         );
         const data = await res.json();
         if (data.status === "success") setStockPreview(data.data);
@@ -196,7 +197,7 @@ export default function ProduccionPage() {
       try {
         const res = await fetchConAuth(
           // 👇 agrega id_orden al query string
-          `${import.meta.env.VITE_API_URL}/produccion/verificar-stock?id_receta=${nuevaRecetaId}&cantidad_producir=${nuevaCantidad}&id_orden=${ordenEditando.id_orden_produccion}`,
+          `${API_URL}/produccion/verificar-stock?id_receta=${nuevaRecetaId}&cantidad_producir=${nuevaCantidad}&id_orden=${ordenEditando.id_orden_produccion}`,
         );
         const data = await res.json();
         if (data.status === "success") setStockPreviewEditar(data.data);
@@ -214,7 +215,7 @@ export default function ProduccionPage() {
     // ... validaciones igual que antes ...
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion`,
+        `${API_URL}/produccion`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -243,7 +244,7 @@ export default function ProduccionPage() {
     const timeout = setTimeout(async () => {
       try {
         const res = await fetchConAuth(
-          `${import.meta.env.VITE_API_URL}/produccion/${ordenEditandoReceta.id_orden_produccion}/verificar-stock-edicion`,
+          `${API_URL}/produccion/${ordenEditandoReceta.id_orden_produccion}/verificar-stock-edicion`,
           {
             method: "POST",
             body: JSON.stringify({
@@ -273,7 +274,7 @@ export default function ProduccionPage() {
   const iniciarProduccion = async () => {
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${ordenParaIniciar.id_orden_produccion}/iniciar`,
+        `${API_URL}/produccion/${ordenParaIniciar.id_orden_produccion}/iniciar`,
         { method: "PUT" },
       );
       if (!res) return;
@@ -290,7 +291,7 @@ export default function ProduccionPage() {
   const finalizarProduccion = async () => {
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${ordenParaFinalizar.id_orden_produccion}/finalizar`,
+        `${API_URL}/produccion/${ordenParaFinalizar.id_orden_produccion}/finalizar`,
         { method: "PUT" },
       );
       if (!res) return;
@@ -313,7 +314,7 @@ export default function ProduccionPage() {
     // ... confirm igual que antes ...
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${id}`,
+        `${API_URL}/produccion/${id}`,
         {
           method: "DELETE",
         },
@@ -356,7 +357,7 @@ export default function ProduccionPage() {
     // ... validaciones igual ...
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${ordenEditando.id_orden_produccion}/cantidad`,
+        `${API_URL}/produccion/${ordenEditando.id_orden_produccion}/cantidad`,
         {
           method: "PUT",
           body: JSON.stringify({
@@ -477,7 +478,7 @@ export default function ProduccionPage() {
     setGuardandoReceta(true);
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${ordenEditandoReceta.id_orden_produccion}/receta`,
+        `${API_URL}/produccion/${ordenEditandoReceta.id_orden_produccion}/receta`,
 
         {
           method: "PUT",
@@ -524,7 +525,7 @@ export default function ProduccionPage() {
     }
     try {
       const res = await fetchConAuth(
-        `${import.meta.env.VITE_API_URL}/produccion/${ordenReasignando.id_orden_produccion}/reasignar`,
+        `${API_URL}/produccion/${ordenReasignando.id_orden_produccion}/reasignar`,
         {
           method: "PUT",
           body: JSON.stringify({ id_usuario_inicio: Number(nuevoOperarioId) }),
