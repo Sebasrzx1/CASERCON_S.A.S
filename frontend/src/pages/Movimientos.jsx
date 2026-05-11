@@ -695,7 +695,7 @@ export default function Movimientos() {
         </div>
         <div class="section-title">Detalle de Órdenes de Producción</div>
         <table>
-          <thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">KG</th><th>Estado</th><th>Creado por</th><th>Operario</th><th>Fecha Creación</th><th>Fecha Fin</th><th style="text-align:center">Horas</th></tr></thead>
+          <thead><tr><th>Código</th><th>Receta</th><th style="text-align:center">KG</th><th>Estado</th><th>Creado por</th><th>Operario</th><th>Fecha Creación</th><th>Fecha Fin</th><th style="text-align:center">Horas</th></tr></thead>
           <tbody>
             ${datos.map(p => `<tr>
               <td style="font-family:monospace;font-weight:bold;">${p.codigo_orden || "—"}</td>
