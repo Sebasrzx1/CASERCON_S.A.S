@@ -1,28 +1,48 @@
-#Node modules
+# Dependencias
 node_modules/
 
-#Archivos subidos (mantener carpeta, ignorar contenido)
-uploads/*
-!uploads/.gitkeep
+# Variables de entorno
+.env
+.env.local
+.env.development
+.env.production
 
-#Logs
+# Logs
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-#Sistema operativo
+# Archivos temporales
+tmp/
+temp/
+*.tmp
+
+# Sistema operativo
 .DS_Store
 Thumbs.db
-._*
 
-#IDE
+# IDEs y editores
 .vscode/
 .idea/
-*.swp
-*.swo
 
-#Cache
-.npm/
-.eslintcache
+# Cobertura y testing
+coverage/
+
+# Archivos compilados o builds
+dist/
+build/
+
+# Subidas de multer (si guardas archivos localmente)
+uploads/
+
+# Caché
+.cache/
+
+# Docker
+docker-data/
+*.pid
+
+# Archivos de configuración sensibles
+config/secrets.js
