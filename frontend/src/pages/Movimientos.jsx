@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 const API = "http://localhost:3000/api/movimientos";
-const API_MP = "http://localhost:3000/api/materias-primas";
+const API_MP = "http://localhost:3000/api/materias-primas"; // POSITIVO PA IA
 const API_REPORTES = "http://localhost:3000/api/reportes";
 
 export default function Movimientos() {
