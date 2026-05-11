@@ -72,10 +72,13 @@ export default function PedidosPage() {
 
   // ── Estadísticas ─────────────────────────────────────────────────
   const stats = useMemo(() => ({
-    total:      pedidos.filter((p) => p.tipo_pedido === "compra").length,
-    pendientes: pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "pendiente").length,
-    recibidos:  pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "recibido").length,
-  }), [pedidos]);
+  total:        pedidos.filter((p) => p.tipo_pedido === "compra").length,
+  pendientes:   pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "pendiente").length,
+  recibidos:    pedidos.filter((p) => p.tipo_pedido === "compra" && p.estado === "recibido").length,
+  devoluciones: pedidos.filter((p) => p.tipo_pedido === "devolucion").length,
+  devPendientes: pedidos.filter((p) => p.tipo_pedido === "devolucion" && p.estado === "pendiente").length,
+  devRecibidas:  pedidos.filter((p) => p.tipo_pedido === "devolucion" && p.estado === "recibido").length,
+}), [pedidos]);
 
   // ── Filtrado ─────────────────────────────────────────────────────
   const pedidosFiltrados = useMemo(() => {
@@ -385,6 +388,10 @@ export default function PedidosPage() {
         </tr>`;
     }).join("");
 
+  const ordenOrigen = esDevolucion && pedido.id_pedido_origen
+  ? pedidos.find((p) => p.id_pedido === pedido.id_pedido_origen)
+  : null;
+
     const html = `<!DOCTYPE html><html>
       <head><meta charset="UTF-8"><title>${titulo}</title>
       <style>
@@ -423,6 +430,14 @@ export default function PedidosPage() {
           ${pedido.usuario_receptor ? `<div class="info-item"><label>Recibido por</label><span>${pedido.usuario_receptor}</span></div>` : ""}
           ${pedido.fecha_entrega ? `<div class="info-item"><label>${pedido.estado === "recibido" ? "Fecha Recepción" : "Entrega Esperada"}</label><span>${new Date(pedido.fecha_entrega).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}</span></div>` : ""}
           ${pedido.observaciones ? `<div class="info-item" style="grid-column:span 2;"><label>Observaciones del pedido</label><span>${pedido.observaciones}</span></div>` : ""}
+          ${ordenOrigen ? `
+            <div class="info-item" style="grid-column:span 2;border-left-color:#1e40af;">
+              <label>Orden de Recepción Relacionada</label>
+              <span>${ordenOrigen.no_orden_compra} — ${ordenOrigen.nombre_proveedor}
+                ${ordenOrigen.nombre_empresa ? ` (${ordenOrigen.nombre_empresa})` : ""}
+                · Estado: ${ordenOrigen.estado.toUpperCase()}
+              </span>
+            </div>` : ""}
         </div>
         <div class="section-title">Materias Primas</div>
         <table>
@@ -482,20 +497,28 @@ export default function PedidosPage() {
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Total Órdenes</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-        </div>
-        <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
-          <p className="text-sm text-yellow-700 mb-1">Pendientes</p>
-          <p className="text-2xl font-bold text-yellow-700">{stats.pendientes}</p>
-        </div>
-        <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-          <p className="text-sm text-green-700 mb-1">Recibidos</p>
-          <p className="text-2xl font-bold text-green-700">{stats.recibidos}</p>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <p className="text-sm text-gray-600 mb-1">Total Órdenes</p>
+        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+      </div>
+      <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
+        <p className="text-sm text-yellow-700 mb-1">Pendientes</p>
+        <p className="text-2xl font-bold text-yellow-700">{stats.pendientes}</p>
+      </div>
+      <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+        <p className="text-sm text-green-700 mb-1">Recibidos</p>
+        <p className="text-2xl font-bold text-green-700">{stats.recibidos}</p>
+      </div>
+      <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
+        <p className="text-sm text-purple-700 mb-1">Devoluciones</p>
+        <p className="text-2xl font-bold text-purple-700">{stats.devoluciones}</p>
+        <div className="flex gap-3 mt-1">
+          <p className="text-xs text-yellow-600 font-medium">{stats.devPendientes} pend.</p>
+          <p className="text-xs text-green-600 font-medium">{stats.devRecibidas} recib.</p>
         </div>
       </div>
+    </div>
 
       {/* Filtros */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
@@ -621,6 +644,25 @@ export default function PedidosPage() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
+
+                    {esDevolucion && pedido.id_pedido_origen && (() => {
+                      const origen = pedidos.find((p) => p.id_pedido === pedido.id_pedido_origen);
+                      return origen ? (
+                        <div>
+                          <p className="text-gray-500 mb-1">Pedido Origen</p>
+                          <p className="font-medium text-gray-900 flex items-center gap-1">
+                            <Truck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                            {origen.no_orden_compra}
+                          </p>
+                          <p className="text-xs text-gray-400">{origen.nombre_proveedor}</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-gray-500 mb-1">Pedido Origen</p>
+                          <p className="text-xs text-gray-400 italic">No encontrado</p>
+                        </div>
+                      );
+                    })()}
                   <div>
                     <p className="text-gray-500 mb-1">Fecha Creación</p>
                     <p className="font-medium text-gray-900">{new Date(pedido.fecha_creacion).toLocaleDateString("es-CO")}</p>
@@ -639,25 +681,82 @@ export default function PedidosPage() {
                   </div>
                 )}
 
-              {/* Items — solo lectura */}
+              {/* Items — con info de devolución si aplica */}
               {(pedido.items || []).filter(Boolean).length > 0 && (
                 <div className="border-t border-gray-100 pt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Materias Primas:</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {(pedido.items || []).filter(Boolean).map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Package className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm text-gray-700">{item.nombre_materia}</span>
+                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
+                    Materias Primas
+                  </p>
+                  <div className="space-y-1.5">
+                    {(pedido.items || []).filter(Boolean).map((item, idx) => {
+                      const cantDev     = Number(item.cantidad_devuelta || 0);
+                      const cantOrig    = Number(item.cantidad_solicitada);
+                      const cantIngreso = cantOrig - cantDev;
+                      const tieneDevol  = cantDev > 0;
+
+                      return (
+                        <div key={idx}
+                          className={`rounded-lg px-3 py-2 border ${
+                            tieneDevol ? "bg-yellow-50 border-yellow-200" : "bg-gray-50 border-gray-100"
+                          }`}>
+                          {/* Fila principal */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Package className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm font-medium text-gray-800 truncate">
+                                {item.nombre_materia}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0 ml-2 text-xs">
+                              {tieneDevol ? (
+                                <>
+                                  <span className="text-gray-500 line-through">
+                                    {cantOrig.toFixed(2)} KG
+                                  </span>
+                                  <span className="text-red-500 font-medium">
+                                    − {cantDev.toFixed(2)} KG dev.
+                                  </span>
+                                  <span className="text-green-600 font-bold">
+                                    = {cantIngreso.toFixed(2)} KG ingresado
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-sm font-bold text-gray-900">
+                                  {cantOrig.toFixed(2)} KG
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Razón devolución */}
+                          {tieneDevol && item.observacion_devolucion && (
+                            <p className="mt-1 text-xs text-orange-700 pl-5">
+                              <span className="font-medium">Razón:</span> {item.observacion_devolucion}
+                            </p>
+                          )}
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {parseFloat(item.cantidad_solicitada).toFixed(2)} KG
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
+
+              {/* Enlace a orden de recepción origen — solo en devoluciones */}
+              {esDevolucion && pedido.id_pedido_origen && (() => {
+                const origen = pedidos.find((p) => p.id_pedido === pedido.id_pedido_origen);
+                return origen ? (
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <p className="text-xs text-purple-600 font-medium mb-1">Orden de recepción relacionada:</p>
+                    <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-purple-200">
+                      <Truck className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <span className="text-sm font-bold text-gray-800">{origen.no_orden_compra}</span>
+                      <span className="text-xs text-gray-500">·</span>
+                      <span className="text-xs text-gray-500">{origen.nombre_proveedor}</span>
+                      <span className="text-xs text-gray-500">·</span>
+                      {getEstadoBadge(origen.estado)}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
               </div>
             );
           })
