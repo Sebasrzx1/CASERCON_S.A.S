@@ -13,9 +13,8 @@ import {
   ChevronUp,
   Package,
 } from "lucide-react";
+import API_URL from "../service/api";
 
-const API = "http://localhost:3000/api/recetas";
-const API_MP = "http://localhost:3000/api/materias-primas";
 
 export default function Recetas() {
   const { isAdministrador } = useAuth();
@@ -41,7 +40,7 @@ export default function Recetas() {
   const cargarRecetas = async () => {
     setCargando(true);
     try {
-      const res = await fetch(API, {
+      const res = await fetch(`${API_URL}/recetas`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const data = await res.json();
@@ -60,7 +59,7 @@ export default function Recetas() {
 
   const cargarMateriasPrimas = async () => {
     try {
-      const res = await fetch(API_MP, {
+      const res = await fetch(`${API_URL}/materias-primas`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const data = await res.json();
@@ -160,7 +159,7 @@ export default function Recetas() {
     }
     setGuardando(true);
     try {
-      const url = editando ? `${API}/${editando.id_receta}` : API;
+      const url = editando ? `${API_URL}/recetas/${editando.id_receta}` : `${API_URL}/recetas`;
       const method = editando ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -205,8 +204,8 @@ export default function Recetas() {
     try {
       const url =
         accion === "inhabilitar"
-          ? `${API}/${receta.id_receta}`
-          : `${API}/${receta.id_receta}/habilitar`;
+          ? `${API_URL}/recetas/${receta.id_receta}`
+          : `${API_URL}/recetas/${receta.id_receta}/habilitar`;
       const method = accion === "inhabilitar" ? "DELETE" : "PATCH";
       const res = await fetch(url, {
         method,

@@ -27,6 +27,7 @@ import { Label } from "../components/label";
 import { Textarea } from "../components/textarea";
 import { Card, CardContent } from "../components/card";
 import { toast } from "sonner";
+import API_URL from "../service/api";
 
 // ══════════════════════════════════════════
 // Modal de Confirmación Reutilizable
@@ -171,7 +172,7 @@ export default function Proveedores() {
 
   const fetchProveedores = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/proveedores");
+      const res = await fetch(`${API_URL}/proveedores`);
       const data = await res.json();
       const adaptados = data.data.map((p) => ({
         id: p.id_proveedor,
@@ -212,7 +213,7 @@ export default function Proveedores() {
   const agregarProveedor = async () => {
     setCargando(true);
     try {
-      const res = await fetch("http://localhost:3000/api/proveedores", {
+      const res = await fetch(`${API_URL}/proveedores`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,7 +248,7 @@ export default function Proveedores() {
   const actualizarProveedor = async () => {
     setCargando(true);
     try {
-      const res = await fetch(`http://localhost:3000/api/proveedores/${proveedorEditando}`, {
+      const res = await fetch(`${API_URL}/proveedores/${proveedorEditando}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -286,7 +287,7 @@ export default function Proveedores() {
       onConfirmar: async () => {
         cerrarConfirmacion();
         try {
-          await fetch(`http://localhost:3000/api/proveedores/${id}`, {
+          await fetch(`${API_URL}/proveedores/${id}`, {
             method: "DELETE",
           });
           toast.success("Proveedor inhabilitado correctamente");
@@ -310,7 +311,7 @@ export default function Proveedores() {
       onConfirmar: async () => {
         cerrarConfirmacion();
         try {
-          await fetch(`http://localhost:3000/api/proveedores/${id}/habilitar`, {
+          await fetch(`${API_URL}/proveedores/${id}/habilitar`, {
             method: "PATCH",
           });
           toast.success("Proveedor habilitado correctamente");
