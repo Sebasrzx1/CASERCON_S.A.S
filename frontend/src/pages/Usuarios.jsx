@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { Users, Plus, Edit, Eye, EyeOff, Ban, Check, X, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "../components/card";
 import { toast } from "sonner";
+import API_URL from "../service/api";
 
 // ── Modal de confirmación reutilizable ──────────────────────────────
 function ModalConfirmacion({ abierto, titulo, mensaje, onConfirmar, onCancelar, tipo = "danger" }) {
@@ -94,7 +95,7 @@ export default function Usuarios() {
   // ========================
   const obtenerUsuarios = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/usuarios");
+      const res = await fetch(`${API_URL}/usuarios`);
       const data = await res.json();
       const usuariosNormalizados = data.data.map((u) => ({
         ...u,
@@ -149,7 +150,7 @@ export default function Usuarios() {
       return;
     }
     try {
-      const res = await fetch("http://localhost:3000/api/usuarios", {
+      const res = await fetch("${API_URL}/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formulario, rol: "Operario" }),
@@ -185,7 +186,7 @@ export default function Usuarios() {
       procesos: formulario.procesos,
     };
     try {
-      const res = await fetch(`http://localhost:3000/api/usuarios/${usuarioEditando.id_usuario}`, {
+      const res = await fetch(`${API_URL}/usuarios/${usuarioEditando.id_usuario}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -211,7 +212,7 @@ export default function Usuarios() {
       onConfirmar: async () => {
         cerrarConfirmacion();
         try {
-          const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+          const res = await fetch(`${API_URL}/usuarios/${id}`, {
             method: "DELETE",
             headers: {
               "Content-Type": "application/json",
@@ -244,7 +245,7 @@ export default function Usuarios() {
       onConfirmar: async () => {
         cerrarConfirmacion();
         try {
-          await fetch(`http://localhost:3000/api/usuarios/${id}/habilitar`, {
+          await fetch(`${API_URL}/usuarios/${id}/habilitar`, {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",

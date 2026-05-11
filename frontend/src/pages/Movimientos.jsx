@@ -20,10 +20,7 @@ import {
   ChevronRight,
   ArrowLeft,
 } from "lucide-react";
-
-const API = "http://localhost:3000/api/movimientos";
-const API_MP = "http://localhost:3000/api/materias-primas"; // POSITIVO PA IA
-const API_REPORTES = "http://localhost:3000/api/reportes";
+import API_URL from "../service/api";
 
 export default function Movimientos() {
   const { isAdministrador, fetchConAuth } = useAuth();
@@ -67,7 +64,7 @@ export default function Movimientos() {
   const cargarMovimientos = async () => {
     setCargando(true);
     try {
-      const res = await fetch(API);
+      const res = await fetch(`${API_URL}/movimientos`);
       const data = await res.json();
       const lista = Array.isArray(data.data)
         ? data.data
@@ -84,7 +81,7 @@ export default function Movimientos() {
 
   const cargarMateriasPrimas = async () => {
     try {
-      const res = await fetchConAuth(API_MP);
+      const res = await fetchConAuth(`${API_URL}/materias-primas`);
       if (!res) return;
       const data = await res.json();
       const todas = Array.isArray(data) ? data : [];
@@ -100,7 +97,7 @@ export default function Movimientos() {
       return;
     }
     try {
-      const res = await fetchConAuth(`${API}/lotes/${id_materia}`);
+      const res = await fetchConAuth(`${API_URL}/movimientos/lotes/${id_materia}`);
       if (!res) return;
       const data = await res.json();
       setLotes(Array.isArray(data.data) ? data.data : []);
@@ -211,10 +208,10 @@ export default function Movimientos() {
     try {
       const url =
         tipoMovimiento === "Entrada"
-          ? `${API}/entrada`
+          ? `${API_URL}/movimientos/entrada`
           : tipoMovimiento === "Salida"
-            ? `${API}/salida`
-            : `${API}/devolucion`;
+            ? `${API_URL}/movimientos/salida`
+            : `${API_URL}/movimientos/devolucion`;
 
       const body =
         tipoMovimiento === "Entrada"
@@ -317,7 +314,7 @@ export default function Movimientos() {
       if (filtroReporte.fecha_inicio) params.append("fecha_inicio", filtroReporte.fecha_inicio);
       if (filtroReporte.fecha_fin) params.append("fecha_fin", filtroReporte.fecha_fin);
 
-      const endpoint = `${API_REPORTES}/${tipoReporte}?${params}`;
+      const endpoint = `${API_URL}/reportes/${tipoReporte}?${params}`;
       const res = await fetchConAuth(endpoint);
       if (!res) return;
       const data = await res.json();
