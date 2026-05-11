@@ -2,87 +2,86 @@ const db = require("../config/conexion_db");
 
 const PedidosModel = {
 
-async findAll() {
-  const query = `
-    SELECT
-      p.id_pedido,
-      p.no_orden_compra,
-      p.fecha_creacion,
-      p.tipo_pedido,
-      p.fecha_entrega,
-      p.observaciones,
-      p.estado,
-      pr.id_proveedor,
-      pr.nombre_proveedor,
-      pr.nombre_empresa,
-      uc.nombre AS usuario_creador,
-      ur.nombre AS usuario_receptor,
-      dp.id_detalle_pedido,
-      dp.id_materia,
-      dp.cantidad_solicitada,
-      mp.nombre AS nombre_materia,
-      COALESCE((
-        SELECT SUM(dp2.cantidad_solicitada)
-        FROM pedidos pd2
-        INNER JOIN detalle_pedidos dp2 ON pd2.id_pedido = dp2.id_pedido
-        WHERE pd2.tipo_pedido = 'devolucion'
-          AND pd2.id_pedido_origen = p.id_pedido
-          AND dp2.id_materia = dp.id_materia
-      ), 0) AS cantidad_devuelta,
-      -- Observación del movimiento de devolución para este item
-      (
-        SELECT mi.observacion
-        FROM movimientos_inventario mi
-        WHERE mi.id_pedido = p.id_pedido
-          AND mi.id_materia = dp.id_materia
-          AND mi.tipo_movimiento = 'Devolucion'
-        LIMIT 1
-      ) AS observacion_devolucion
-    FROM pedidos p
-    INNER JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
-    INNER JOIN usuarios uc ON p.id_usuario_creador = uc.id_usuario
-    LEFT JOIN usuarios ur ON p.id_usuario_receptor = ur.id_usuario
-    LEFT JOIN detalle_pedidos dp ON p.id_pedido = dp.id_pedido
-    LEFT JOIN materias_primas mp ON dp.id_materia = mp.id_materia
-    WHERE p.tipo_pedido IN ('compra', 'devolucion')
-    ORDER BY p.fecha_creacion DESC, dp.id_detalle_pedido ASC;
-  `;
+  async findAll() {
+    const query = `
+      SELECT
+        p.id_pedido,
+        p.no_orden_compra,
+        p.fecha_creacion,
+        p.tipo_pedido,
+        p.fecha_entrega,
+        p.observaciones,
+        p.estado,
+        pr.id_proveedor,
+        pr.nombre_proveedor,
+        pr.nombre_empresa,
+        uc.nombre AS usuario_creador,
+        ur.nombre AS usuario_receptor,
+        dp.id_detalle_pedido,
+        dp.id_materia,
+        dp.cantidad_solicitada,
+        mp.nombre AS nombre_materia,
+        COALESCE((
+          SELECT SUM(dp2.cantidad_solicitada)
+          FROM pedidos pd2
+          INNER JOIN detalle_pedidos dp2 ON pd2.id_pedido = dp2.id_pedido
+          WHERE pd2.tipo_pedido = 'devolucion'
+            AND pd2.id_pedido_origen = p.id_pedido
+            AND dp2.id_materia = dp.id_materia
+        ), 0) AS cantidad_devuelta,
+        (
+          SELECT mi.observacion
+          FROM movimientos_inventario mi
+          WHERE mi.id_pedido = p.id_pedido
+            AND mi.id_materia = dp.id_materia
+            AND mi.tipo_movimiento = 'Devolucion'
+          LIMIT 1
+        ) AS observacion_devolucion
+      FROM pedidos p
+      INNER JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
+      INNER JOIN usuarios uc ON p.id_usuario_creador = uc.id_usuario
+      LEFT JOIN usuarios ur ON p.id_usuario_receptor = ur.id_usuario
+      LEFT JOIN detalle_pedidos dp ON p.id_pedido = dp.id_pedido
+      LEFT JOIN materias_primas mp ON dp.id_materia = mp.id_materia
+      WHERE p.tipo_pedido IN ('compra', 'devolucion')
+      ORDER BY p.fecha_creacion DESC, dp.id_detalle_pedido ASC;
+    `;
 
-  const [rows] = await db.execute(query);
+    const [rows] = await db.execute(query);
 
-  const map = {};
-  for (const row of rows) {
-    if (!map[row.id_pedido]) {
-      map[row.id_pedido] = {
-        id_pedido:            row.id_pedido,
-        no_orden_compra:      row.no_orden_compra,
-        fecha_creacion:       row.fecha_creacion,
-        tipo_pedido:          row.tipo_pedido,
-        fecha_entrega:        row.fecha_entrega,
-        observaciones:        row.observaciones,
-        estado:               row.estado,
-        id_proveedor:         row.id_proveedor,
-        nombre_proveedor:     row.nombre_proveedor,
-        nombre_empresa:       row.nombre_empresa,
-        usuario_creador:      row.usuario_creador,
-        usuario_receptor:     row.usuario_receptor,
-        items: [],
-      };
+    const map = {};
+    for (const row of rows) {
+      if (!map[row.id_pedido]) {
+        map[row.id_pedido] = {
+          id_pedido:         row.id_pedido,
+          no_orden_compra:   row.no_orden_compra,
+          fecha_creacion:    row.fecha_creacion,
+          tipo_pedido:       row.tipo_pedido,
+          fecha_entrega:     row.fecha_entrega,
+          observaciones:     row.observaciones,
+          estado:            row.estado,
+          id_proveedor:      row.id_proveedor,
+          nombre_proveedor:  row.nombre_proveedor,
+          nombre_empresa:    row.nombre_empresa,
+          usuario_creador:   row.usuario_creador,
+          usuario_receptor:  row.usuario_receptor,
+          items: [],
+        };
+      }
+      if (row.id_detalle_pedido) {
+        map[row.id_pedido].items.push({
+          id_detalle_pedido:      row.id_detalle_pedido,
+          id_materia:             row.id_materia,
+          nombre_materia:         row.nombre_materia,
+          cantidad_solicitada:    row.cantidad_solicitada,
+          cantidad_devuelta:      row.cantidad_devuelta,
+          cantidad_ingresada:     Number(row.cantidad_solicitada) - Number(row.cantidad_devuelta),
+          observacion_devolucion: row.observacion_devolucion || null,
+        });
+      }
     }
-    if (row.id_detalle_pedido) {
-      map[row.id_pedido].items.push({
-        id_detalle_pedido:     row.id_detalle_pedido,
-        id_materia:            row.id_materia,
-        nombre_materia:        row.nombre_materia,
-        cantidad_solicitada:   row.cantidad_solicitada,
-        cantidad_devuelta:     row.cantidad_devuelta,
-        cantidad_ingresada:    Number(row.cantidad_solicitada) - Number(row.cantidad_devuelta),
-        observacion_devolucion: row.observacion_devolucion || null,
-      });
-    }
-  }
-  return Object.values(map);
-},
+    return Object.values(map);
+  },
 
   async findById(id) {
     const query = `
@@ -173,13 +172,56 @@ async findAll() {
     finally { conn.release(); }
   },
 
-
   async delete(id) {
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
+
+      // Verificar si es una orden de devolución
+      const [pedidoRows] = await conn.execute(
+        `SELECT tipo_pedido FROM pedidos WHERE id_pedido = ?`, [id]
+      );
+      const pedido = pedidoRows[0];
+
+      if (pedido && pedido.tipo_pedido === "devolucion") {
+        // Obtener detalles para saber qué materias y cantidades restaurar
+        const [detalles] = await conn.execute(
+          `SELECT dp.id_materia, dp.cantidad_solicitada
+           FROM detalle_pedidos dp
+           WHERE dp.id_pedido = ?`, [id]
+        );
+
+        for (const detalle of detalles) {
+          // Buscar el lote asociado al movimiento de devolución
+          const [movRows] = await conn.execute(
+            `SELECT id_lote FROM movimientos_inventario
+             WHERE id_pedido = ? AND id_materia = ? AND tipo_movimiento = 'Devolucion'
+             LIMIT 1`,
+            [id, detalle.id_materia]
+          );
+
+          if (movRows.length > 0 && movRows[0].id_lote) {
+            // Restaurar stock y estado del lote
+            await conn.execute(
+              `UPDATE lotes
+               SET stock_restante = stock_restante + ?,
+                   estado = 'activo'
+               WHERE id_lote = ?`,
+              [detalle.cantidad_solicitada, movRows[0].id_lote]
+            );
+          }
+        }
+
+        // Eliminar movimientos asociados a esta orden de devolución
+        await conn.execute(
+          `DELETE FROM movimientos_inventario WHERE id_pedido = ?`, [id]
+        );
+      }
+
+      // Eliminar detalle y pedido
       await conn.execute(`DELETE FROM detalle_pedidos WHERE id_pedido=?`, [id]);
       await conn.execute(`DELETE FROM pedidos WHERE id_pedido=?`, [id]);
+
       await conn.commit();
     } catch (e) { await conn.rollback(); throw e; }
     finally { conn.release(); }
@@ -258,7 +300,7 @@ async findAll() {
                (id_materia, id_lote, id_usuario, tipo_movimiento, cantidad, id_pedido, observacion)
              VALUES (?, NULL, ?, 'Devolucion', ?, ?, ?)`,
             [detalle.id_materia, id_usuario_receptor, cantDevuelta, id_pedido,
-             devInfo.observacion || `Devolución de ${pedido.no_orden_compra}`]
+             devInfo.observacion || null]
           );
         }
       }
@@ -276,7 +318,7 @@ async findAll() {
               observaciones, estado, id_usuario_creador, id_pedido_origen)
            VALUES (?, ?, 'devolucion', NULL, ?, 'pendiente', ?, ?)`,
           [pedido.id_proveedor, odCodigo,
-           `Devolución automática de ${pedido.no_orden_compra}`,
+           null,
            id_usuario_receptor, id_pedido]
         );
 

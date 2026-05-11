@@ -12,7 +12,7 @@ import Recetas     from "./pages/Recetas";
 import Produccion  from "./pages/Produccion";
 import Pedidos     from "./pages/Pedidos";
 import Proveedores from "./pages/Proveedores";
-import Movimientos from "./pages/Movimientosj";
+import Movimientos from "./pages/Movimientos";
 import Usuarios    from "./pages/Usuarios";
 
 function App() {
