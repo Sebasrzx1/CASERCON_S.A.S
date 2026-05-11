@@ -7,15 +7,8 @@ import {
   ChevronDown, ChevronUp, Check, Ban,
 } from "lucide-react";
 import { z } from "zod";
+import API_URL from "../service/api";
 
-const API = "http://localhost:3000/api/materias-primas";
-
-// ─── Límites alineados con la base de datos ───────────────────────────────────
-// nombre       VARCHAR(80)
-// codigo       VARCHAR(100) — solo numérico, usamos 11 dígitos como en la BD
-// abreviacion  VARCHAR(3)
-// stock_min    DECIMAL(12,2) → parte entera max 10 dígitos → 9999999999.99
-// stock_inicial DECIMAL(12,2) → igual
 const LIMITES = {
   nombre:      80,
   abreviacion: 3,
@@ -144,7 +137,7 @@ export default function Inventario() {
   const cargarMaterias = async () => {
     setCargando(true);
     try {
-      const res  = await fetch(API);
+      const res  = await fetch(`${API_URL}/materias-primas`);
       const data = await res.json();
       setMaterias(Array.isArray(data) ? data : []);
     } catch { toast.error("Error al cargar materias primas"); }
@@ -153,7 +146,7 @@ export default function Inventario() {
 
   const cargarCategorias = async () => {
     try {
-      const res  = await fetch(`${API}/categorias`);
+      const res  = await fetch(`${API_URL}/materias-primas/categorias`);
       const data = await res.json();
       setCategorias(Array.isArray(data) ? data : []);
     } catch { /* silencioso */ }
@@ -260,7 +253,7 @@ export default function Inventario() {
 
     setGuardando(true);
     try {
-      const url    = editando ? `${API}/${editando.id_materia}` : API;
+      const url    = editando ? `${API_URL}/materias-primas/${editando.id_materia}` : `${API_URL}/materias-primas`;
       const method = editando ? "PUT" : "POST";
 
       // ✅ CORRECCIÓN: se envía formularioLimpio (con trim aplicado) no formulario
@@ -290,7 +283,7 @@ export default function Inventario() {
     if (accion === "inhabilitar") {
       let lotesActivos = 0;
       try {
-        const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
+        const res  = await fetch(`${API_URL}/materias-primas/${materia.id_materia}/lotes`);
         const data = await res.json();
         lotesActivos = Array.isArray(data)
           ? data.filter((l) => l.estado !== "agotado" && Number(l.stock_restante) > 0).length
@@ -306,7 +299,7 @@ export default function Inventario() {
   const confirmarAccion = async () => {
     const { materia, accion } = confirmData;
     try {
-      const url    = accion === "inhabilitar" ? `${API}/${materia.id_materia}` : `${API}/${materia.id_materia}/habilitar`;
+      const url    = accion === "inhabilitar" ? `${API_URL}/materias-primas/${materia.id_materia}` : `${API_URL}/materias-primas/${materia.id_materia}/habilitar`;
       const method = accion === "inhabilitar" ? "DELETE" : "PATCH";
       const res    = await fetch(url, { method });
       const data   = await res.json();
@@ -320,7 +313,7 @@ export default function Inventario() {
   const verLotes = async (materia) => {
     setMateriaLotes(materia); setModalLotes(true); setCargandoLotes(true);
     try {
-      const res  = await fetch(`${API}/${materia.id_materia}/lotes`);
+      const res  = await fetch(`${API_URL}/materias-primas  /${materia.id_materia}/lotes`);
       const data = await res.json();
       setLotes(Array.isArray(data) ? data : []);
     } catch { toast.error("Error al cargar lotes"); }

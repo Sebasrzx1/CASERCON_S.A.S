@@ -6,8 +6,8 @@ import {
   Truck, Trash2, Edit, AlertTriangle, Search, Calendar,
   Printer, RotateCcw,
 } from "lucide-react";
+import API_URL from "../service/api";
 
-const API = "http://localhost:3000/api/pedidos";
 
 export default function PedidosPage() {
   const STOCK_MAX = 99999.99;
@@ -41,7 +41,7 @@ export default function PedidosPage() {
   const fetchPedidos = async () => {
     try {
       setLoading(true);
-      const res = await fetchConAuth(API);
+      const res = await fetchConAuth(`${API_URL}/pedidos`);
       if (!res) return;
       const data = await res.json();
       setPedidos(Array.isArray(data.data) ? data.data : []);
@@ -52,8 +52,8 @@ export default function PedidosPage() {
   const fetchCatalogos = async () => {
     try {
       const [rProv, rMat] = await Promise.all([
-        fetchConAuth(`${API}/proveedores`),
-        fetchConAuth(`${API}/materias`),
+        fetchConAuth(`${API_URL}/proveedores`),
+        fetchConAuth(`${API_URL}/pedidos/materias`),
       ]);
       if (!rProv || !rMat) return;
       const dProv = await rProv.json();
@@ -243,7 +243,7 @@ export default function PedidosPage() {
   };
 
   try {
-    const url    = pedidoEditando ? `${API}/${pedidoEditando.id_pedido}` : API;
+    const url    = pedidoEditando ? `${API_URL}/pedidos/${pedidoEditando.id_pedido}` : `${API_URL}/pedidos`;
     const method = pedidoEditando ? "PUT" : "POST";
     const res = await fetchConAuth(url, {
       method,
@@ -318,7 +318,7 @@ export default function PedidosPage() {
       }));
 
     try {
-      const res = await fetchConAuth(`${API}/${pedidoActivo.id_pedido}/recibir`, {
+      const res = await fetchConAuth(`${API_URL}/pedidos/${pedidoActivo.id_pedido}/recibir`, {
         method: "PUT",
         body: JSON.stringify({ itemsDevolucion: itemsConProblema }),
       });
@@ -345,7 +345,7 @@ export default function PedidosPage() {
   const confirmarCancelar = async () => {
     if (!pedidoActivo) return;
     try {
-      const res = await fetchConAuth(`${API}/${pedidoActivo.id_pedido}`, {
+      const res = await fetchConAuth(`${API_URL}/pedidos/${pedidoActivo.id_pedido}`, {
         method: "DELETE",
       });
       if (!res) return;

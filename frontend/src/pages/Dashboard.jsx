@@ -4,6 +4,7 @@ import {
   Package, BookOpen, Factory, TrendingDown,
   ShoppingCart, Activity, CheckCircle, XCircle,
 } from "lucide-react";
+import API_URL from "../service/api";
 
 export default function Dashboard() {
   const [user, setUser]       = useState(null);
@@ -35,7 +36,7 @@ export default function Dashboard() {
   useEffect(() => {
   const fetchMaterias = async () => {
     try {
-      const res  = await fetch("http://localhost:3000/api/materias-primas", { headers });
+      const res  = await fetch(`${API_URL}/materias-primas`, { headers });
       const data = await res.json();
       const lista = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
 
@@ -64,7 +65,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchRecetas = async () => {
       try {
-        const res  = await fetch("http://localhost:3000/api/recetas", { headers });
+        const res  = await fetch(`${API_URL}/recetas`, { headers });
         const data = await res.json();
         const lista = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
         setEstadisticas((prev) => ({
@@ -83,7 +84,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchPedidos = async () => {
       try {
-        const res  = await fetch("http://localhost:3000/api/pedidos", { headers });
+        const res  = await fetch(`${API_URL}/pedidos`, { headers });
         const data = await res.json();
         const lista = Array.isArray(data.data) ? data.data : [];
         setEstadisticas((prev) => ({
@@ -101,7 +102,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchProduccion = async () => {
       try {
-        const res  = await fetch("http://localhost:3000/api/produccion", { headers });
+        const res  = await fetch(`${API_URL}/produccion`, { headers });
         const data = await res.json();
         const lista = Array.isArray(data.data) ? data.data : [];
         setEstadisticas((prev) => ({
@@ -119,7 +120,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchMovimientos = async () => {
       try {
-        const res  = await fetch("http://localhost:3000/api/movimientos", { headers });
+        const res  = await fetch(`${API_URL}/movimientos`, { headers });
         const data = await res.json();
         const lista = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
 

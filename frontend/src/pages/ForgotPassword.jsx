@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import logoCarsecon from "../assets/logo.png";
+import API_URL from "../service/api";
 
 export function ForgotPassword() {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export function ForgotPassword() {
     setLoading(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/forgot-password`,
+        `${API_URL}/auth/forgot-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -101,7 +102,7 @@ export function ForgotPassword() {
     setError("");
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/forgot-password`,
+        `${API_URL}/auth/forgot-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -137,7 +138,7 @@ export function ForgotPassword() {
 
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/verify-code`,
+        `${API_URL}/auth/verify-code`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -171,7 +172,7 @@ export function ForgotPassword() {
     setError("");
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/reset-password`,
+        `${API_URL}/auth/reset-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
