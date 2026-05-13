@@ -1,0 +1,5 @@
+services:
+  backend:
+    context: ./backend
+
+  container_name: casercon_backend
