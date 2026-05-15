@@ -24,28 +24,22 @@ import API_URL from "../service/api";
 const proveedorSchema = z.object({
   nombre: z
     .string()
-    .min(3, "Mínimo 3 caracteres")
-    .max(100, "Máximo 100 caracteres")
-    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ0-9\s&.,\-]+$/, "Solo letras, números y caracteres básicos"),
+    .min(10, "Mínimo 10 caracteres")
+    .regex(
+      /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ0-9\s&.,\-]+$/,
+      "Solo letras, números y caracteres básicos",
+    ),
   contacto: z
     .string()
-    .min(3, "Mínimo 3 caracteres")
-    .max(80, "Máximo 80 caracteres")
+    .min(5, "Mínimo 5 caracteres")
     .regex(/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/, "Solo se permiten letras y espacios"),
   telefono: z
     .string()
-    .min(7, "Teléfono inválido")
-    .max(15, "Teléfono muy largo")
-    .regex(/^[0-9+\-\s()]+$/, "Solo se permiten números y caracteres: + - ( )"),
+    .min(10, "Teléfono inválido")
+    .regex(/^[0-9]+$/, "Solo se permiten números"),
   email: z.string().email("Correo electrónico inválido"),
-  direccion: z
-    .string()
-    .min(5, "Dirección muy corta")
-    .max(200, "Dirección muy larga"),
-  observaciones: z
-    .string()
-    .max(500, "Máximo 500 caracteres")
-    .optional(),
+  direccion: z.string().min(5, "Dirección muy corta"),
+  observaciones: z.string().max(200, "Máximo 200 caracteres").optional(),
 });
 
 // ══════════════════════════════════════════
@@ -57,8 +51,7 @@ const soloLetrasYEspacios = (valor) =>
 const soloNombreEmpresa = (valor) =>
   valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ0-9\s&.,\-]/g, "");
 
-const soloTelefono = (valor) =>
-  valor.replace(/[^0-9+\-\s()]/g, "");
+const soloTelefono = (valor) => valor.replace(/[^0-9]/g, "");
 
 // ══════════════════════════════════════════
 // Overlay compartido
@@ -101,7 +94,9 @@ export default function Proveedores() {
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [modalAbierto, confirmOpen]);
 
   // ==============================
@@ -237,7 +232,9 @@ export default function Proveedores() {
         await fetch(`${API_URL}/proveedores/${id}`, { method: "DELETE" });
         toast.success(`"${nombre}" inhabilitado correctamente`);
       } else {
-        await fetch(`${API_URL}/proveedores/${id}/habilitar`, { method: "PATCH" });
+        await fetch(`${API_URL}/proveedores/${id}/habilitar`, {
+          method: "PATCH",
+        });
         toast.success(`"${nombre}" habilitado correctamente`);
       }
       await fetchProveedores();
@@ -319,12 +316,15 @@ export default function Proveedores() {
   // ==============================
   return (
     <div className="space-y-4 sm:space-y-6">
-
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">Proveedores</h1>
-          <p className="text-gray-600 mt-1 text-sm sm:text-base">Gestión de proveedores</p>
+          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">
+            Proveedores
+          </h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
+            Gestión de proveedores
+          </p>
         </div>
         <button
           onClick={abrirModalNuevo}
@@ -338,7 +338,9 @@ export default function Proveedores() {
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-gray-600 mb-1">Total</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900">{proveedores.length}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">
+            {proveedores.length}
+          </p>
         </div>
         <div className="bg-green-50 rounded-lg border border-green-200 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-green-700 mb-1">Habilitados</p>
@@ -421,8 +423,12 @@ export default function Proveedores() {
                   <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">{p.nombre}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 truncate">{p.contacto}</p>
+                  <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">
+                    {p.nombre}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-500 truncate">
+                    {p.contacto}
+                  </p>
                   <span
                     className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
                       p.habilitado
@@ -430,10 +436,15 @@ export default function Proveedores() {
                         : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {p.habilitado
-                      ? <><Check className="w-3 h-3" /> Habilitado</>
-                      : <><Ban className="w-3 h-3" /> Inhabilitado</>
-                    }
+                    {p.habilitado ? (
+                      <>
+                        <Check className="w-3 h-3" /> Habilitado
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="w-3 h-3" /> Inhabilitado
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -454,7 +465,8 @@ export default function Proveedores() {
                 </div>
                 {p.observaciones && (
                   <p className="text-xs text-gray-500 line-clamp-2 pt-1 border-t border-gray-100">
-                    <span className="font-semibold">Obs:</span> {p.observaciones}
+                    <span className="font-semibold">Obs:</span>{" "}
+                    {p.observaciones}
                   </p>
                 )}
               </div>
@@ -503,15 +515,19 @@ export default function Proveedores() {
               <h2 className="font-bold text-gray-900 text-lg sm:text-xl">
                 {proveedorEditando ? "Editar Proveedor" : "Nuevo Proveedor"}
               </h2>
-              <button onClick={cerrarModal} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
+              <button
+                onClick={cerrarModal}
+                className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
-
+            <form
+              onSubmit={handleSubmit}
+              className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                 {/* Nombre empresa */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -520,18 +536,27 @@ export default function Proveedores() {
                   <input
                     type="text"
                     placeholder="Empresa S.A.S"
+                    maxLength={80}
                     value={formData.nombre}
-                    maxLength={100}
                     onChange={(e) =>
-                      setFormData({ ...formData, nombre: soloNombreEmpresa(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        nombre: soloNombreEmpresa(e.target.value),
+                      })
                     }
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      errores.nombre ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      errores.nombre
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300"
                     }`}
                   />
+                  <p className="text-xs text-gray-400 mt-1 text-right">
+                    {formData.nombre.length}/80
+                  </p>
                   {errores.nombre && (
                     <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.nombre}
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                      {errores.nombre}
                     </p>
                   )}
                 </div>
@@ -545,17 +570,26 @@ export default function Proveedores() {
                     type="text"
                     placeholder="Nombre del contacto"
                     value={formData.contacto}
-                    maxLength={80}
+                    maxLength={45}
                     onChange={(e) =>
-                      setFormData({ ...formData, contacto: soloLetrasYEspacios(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        contacto: soloLetrasYEspacios(e.target.value),
+                      })
                     }
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      errores.contacto ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      errores.contacto
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300"
                     }`}
                   />
+                  <p className="text-xs text-gray-400 mt-1 text-right">
+                    {formData.contacto.length}/45
+                  </p>
                   {errores.contacto && (
                     <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.contacto}
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                      {errores.contacto}
                     </p>
                   )}
                 </div>
@@ -569,17 +603,23 @@ export default function Proveedores() {
                     type="text"
                     placeholder="300 123 4567"
                     value={formData.telefono}
-                    maxLength={15}
+                    maxLength={10}
                     onChange={(e) =>
-                      setFormData({ ...formData, telefono: soloTelefono(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        telefono: soloTelefono(e.target.value),
+                      })
                     }
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      errores.telefono ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      errores.telefono
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300"
                     }`}
                   />
                   {errores.telefono && (
                     <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.telefono}
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                      {errores.telefono}
                     </p>
                   )}
                 </div>
@@ -593,16 +633,23 @@ export default function Proveedores() {
                     type="email"
                     placeholder="correo@empresa.com"
                     value={formData.email}
+                    maxLength={250}
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
                     }
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      errores.email ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      errores.email
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300"
                     }`}
                   />
+                  <p className="text-xs text-gray-400 mt-1 text-right">
+                    {formData.email.length}/250
+                  </p>
                   {errores.email && (
                     <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.email}
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                      {errores.email}
                     </p>
                   )}
                 </div>
@@ -617,17 +664,23 @@ export default function Proveedores() {
                   type="text"
                   placeholder="Calle 123 # 45-67, Ciudad"
                   value={formData.direccion}
-                  maxLength={200}
+                  maxLength={80}
                   onChange={(e) =>
                     setFormData({ ...formData, direccion: e.target.value })
                   }
                   className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                    errores.direccion ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                    errores.direccion
+                      ? "border-red-500 focus:ring-red-500"
+                      : "border-gray-300"
                   }`}
                 />
+                <p className="text-xs text-gray-400 mt-1 text-right">
+                  {formData.direccion.length}/80
+                </p>
                 {errores.direccion && (
                   <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.direccion}
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                    {errores.direccion}
                   </p>
                 )}
               </div>
@@ -635,12 +688,15 @@ export default function Proveedores() {
               {/* Observaciones */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observaciones <span className="text-gray-400 text-xs font-normal">(opcional)</span>
+                  Observaciones{" "}
+                  <span className="text-gray-400 text-xs font-normal">
+                    (opcional)
+                  </span>
                 </label>
                 <textarea
                   placeholder="Notas adicionales sobre el proveedor..."
                   value={formData.observaciones}
-                  maxLength={500}
+                  maxLength={300}
                   rows={3}
                   onChange={(e) =>
                     setFormData({ ...formData, observaciones: e.target.value })
@@ -652,7 +708,8 @@ export default function Proveedores() {
                 </p>
                 {errores.observaciones && (
                   <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.observaciones}
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />{" "}
+                    {errores.observaciones}
                   </p>
                 )}
               </div>
@@ -671,7 +728,11 @@ export default function Proveedores() {
                   disabled={cargando}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
-                  {cargando ? "Guardando..." : proveedorEditando ? "Guardar Cambios" : "Crear Proveedor"}
+                  {cargando
+                    ? "Guardando..."
+                    : proveedorEditando
+                      ? "Guardar Cambios"
+                      : "Crear Proveedor"}
                 </button>
               </div>
             </form>
@@ -693,13 +754,22 @@ export default function Proveedores() {
                 <Check className="w-7 h-7 sm:w-8 sm:h-8 text-green-500 flex-shrink-0" />
               )}
               <h2 className="font-bold text-gray-900 text-base sm:text-lg">
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} proveedor
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}{" "}
+                proveedor
               </h2>
             </div>
             <p className="text-gray-600 mb-5 text-sm sm:text-base">
               ¿Estás seguro de que deseas{" "}
-              {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"} a{" "}
-              <span className="font-semibold text-gray-900">"{confirmData.nombre}"</span>?
+              {confirmData.accion === "inhabilitar"
+                ? "inhabilitar"
+                : "habilitar"}{" "}
+              a{" "}
+              <span className="font-semibold text-gray-900">
+                "{confirmData.nombre}"
+              </span>
+              ?
               {confirmData.accion === "inhabilitar" && (
                 <span className="block mt-2 text-sm text-red-600">
                   Ya no aparecerá disponible en el sistema.
@@ -708,7 +778,10 @@ export default function Proveedores() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setConfirmData(null);
+                }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 Cancelar
@@ -721,7 +794,9 @@ export default function Proveedores() {
                     : "bg-green-600 hover:bg-green-700"
                 }`}
               >
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"}
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}
               </button>
             </div>
           </div>
