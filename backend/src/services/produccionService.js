@@ -44,14 +44,11 @@ const producccionService = {
 
       // Consultar ingredientes de la receta directamente por id_receta
       const queryIngredientes = `
-        SELECT 
-          dr.id_materia,
-          mp.nombre AS nombre_materia,
-          dr.cantidad_porcentaje
+        SELECT dr.id_materia, mp.nombre AS nombre_materia, dr.cantidad_porcentaje, mp.stock_min
         FROM detalle_receta dr
         INNER JOIN materias_primas mp ON dr.id_materia = mp.id_materia
         WHERE dr.id_receta = ?;
-      `;
+`;
       const [ingredientesReceta] = await db.execute(queryIngredientes, [
         data.id_receta,
       ]);
@@ -259,7 +256,7 @@ const producccionService = {
   ) {
     try {
       const queryIngredientes = `
-      SELECT dr.id_materia, mp.nombre AS nombre_materia, dr.cantidad_porcentaje
+      SELECT dr.id_materia, mp.nombre AS nombre_materia, dr.cantidad_porcentaje, mp.stock_min
       FROM detalle_receta dr
       INNER JOIN materias_primas mp ON dr.id_materia = mp.id_materia
       WHERE dr.id_receta = ?;
@@ -294,6 +291,7 @@ const producccionService = {
           cantidad_necesaria: parseFloat(cantidadNecesaria.toFixed(4)),
           stock_disponible: parseFloat(stockDisponible.toFixed(4)),
           suficiente: stockDisponible >= cantidadNecesaria,
+          stock_min: ing.stock_min != null ? parseFloat(ing.stock_min) : null, // 👈 añadir esto
         });
       }
 

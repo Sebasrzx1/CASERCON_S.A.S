@@ -890,70 +890,120 @@ export default function ProduccionPage() {
   };
 
   // ── Componente reutilizable: preview de stock ────────────────────
-  const StockPreviewPanel = ({ preview }) => (
-    <div
-      className={`p-3 sm:p-4 rounded-lg border-2 ${preview.posible ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
-    >
-      <div className="flex items-center gap-2 mb-3">
-        {preview.posible ? (
-          <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-        ) : (
-          <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" />
-        )}
-        <h4
-          className={`font-medium text-sm sm:text-base ${preview.posible ? "text-green-900" : "text-red-900"}`}
-        >
-          {preview.posible ? "Stock suficiente" : "Stock insuficiente"}
-        </h4>
-      </div>
-      <div className="space-y-2">
-        {preview.ingredientes.map((ing, idx) => (
-          <div
-            key={idx}
-            className={`p-2.5 sm:p-3 rounded-lg border ${ing.suficiente ? "bg-white border-gray-200" : "bg-red-100 border-red-300"}`}
+  const StockPreviewPanel = ({ preview }) => {
+    const hayAlertaCritica =
+      preview.posible &&
+      preview.ingredientes.some(
+        (ing) =>
+          ing.suficiente &&
+          ing.stock_min != null &&
+          ing.stock_disponible - ing.cantidad_necesaria < ing.stock_min,
+      );
+
+    return (
+      <div
+        className={`p-3 sm:p-4 rounded-lg border-2 ${preview.posible ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          {preview.posible ? (
+            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" />
+          )}
+          <h4
+            className={`font-medium text-sm sm:text-base ${preview.posible ? "text-green-900" : "text-red-900"}`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs sm:text-sm font-medium text-gray-800 truncate">
-                  {ing.nombre_materia}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {ing.cantidad_porcentaje}%
-                </span>
-              </div>
-              <div className="text-right text-xs sm:text-sm flex-shrink-0">
-                <p
-                  className={`font-bold ${ing.suficiente ? "text-gray-900" : "text-red-700"}`}
-                >
-                  Necesita: {ing.cantidad_necesaria.toFixed(2)} KG
-                </p>
-                <p className="text-gray-500">
-                  Disponible: {ing.stock_disponible.toFixed(2)} KG
-                </p>
-              </div>
-            </div>
-            {!ing.suficiente && (
-              <p className="text-xs text-red-600 font-medium mt-1">
-                Faltan{" "}
-                {(ing.cantidad_necesaria - ing.stock_disponible).toFixed(2)} KG
-              </p>
-            )}
+            {preview.posible ? "Stock suficiente" : "Stock insuficiente"}
+          </h4>
+        </div>
+
+        {hayAlertaCritica && (
+          <div className="flex items-start gap-2 mb-3 p-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+            <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-orange-700 font-medium">
+              Algunas materias primas quedarán en estado crítico tras esta
+              producción.
+            </p>
           </div>
-        ))}
-        <div className="flex items-center justify-between text-sm p-2.5 sm:p-3 bg-blue-50 rounded-lg border border-blue-100 font-medium">
-          <span className="text-blue-900 text-xs sm:text-sm">
-            Total a consumir
-          </span>
-          <span className="text-blue-900 text-xs sm:text-sm">
-            {preview.ingredientes
-              .reduce((sum, i) => sum + i.cantidad_necesaria, 0)
-              .toFixed(2)}{" "}
-            KG
-          </span>
+        )}
+
+        <div className="space-y-2">
+          {preview.ingredientes.map((ing, idx) => (
+            <div
+              key={idx}
+              className={`p-2.5 sm:p-3 rounded-lg border ${
+                !ing.suficiente
+                  ? "bg-red-100 border-red-300"
+                  : ing.stock_min != null &&
+                      ing.stock_disponible - ing.cantidad_necesaria <
+                        ing.stock_min
+                    ? "bg-orange-50 border-orange-300"
+                    : "bg-white border-gray-200"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs sm:text-sm font-medium text-gray-800 truncate">
+                    {ing.nombre_materia}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {ing.cantidad_porcentaje}%
+                  </span>
+                </div>
+                <div className="text-right text-xs sm:text-sm flex-shrink-0">
+                  <p
+                    className={`font-bold ${ing.suficiente ? "text-gray-900" : "text-red-700"}`}
+                  >
+                    Necesita: {ing.cantidad_necesaria.toFixed(2)} KG
+                  </p>
+                  <p className="text-gray-500">
+                    Disponible: {ing.stock_disponible.toFixed(2)} KG
+                  </p>
+                </div>
+              </div>
+
+              {!ing.suficiente && (
+                <p className="text-xs text-red-600 font-medium mt-1">
+                  Faltan{" "}
+                  {(ing.cantidad_necesaria - ing.stock_disponible).toFixed(2)}{" "}
+                  KG
+                </p>
+              )}
+
+              {ing.suficiente &&
+                ing.stock_min != null &&
+                ing.stock_disponible - ing.cantidad_necesaria <
+                  ing.stock_min && (
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <AlertTriangle className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                    <p className="text-xs text-orange-600 font-medium">
+                      Quedará{" "}
+                      {(ing.stock_disponible - ing.cantidad_necesaria).toFixed(
+                        2,
+                      )}{" "}
+                      KG (Mínimo: {ing.stock_min.toFixed(2)} KG) - ESTADO
+                      CRÍTICO
+                    </p>
+                  </div>
+                )}
+            </div>
+          ))}
+
+          <div className="flex items-center justify-between text-sm p-2.5 sm:p-3 bg-blue-50 rounded-lg border border-blue-100 font-medium">
+            <span className="text-blue-900 text-xs sm:text-sm">
+              Total a consumir
+            </span>
+            <span className="text-blue-900 text-xs sm:text-sm">
+              {preview.ingredientes
+                .reduce((sum, i) => sum + i.cantidad_necesaria, 0)
+                .toFixed(2)}{" "}
+              KG
+            </span>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1210,7 +1260,7 @@ export default function ProduccionPage() {
                               Eliminar
                             </button>
 
-                           {/* ── Modal Confirmar Eliminar ── */}
+                            {/* ── Modal Confirmar Eliminar ── */}
                             {modalConfirmarEliminar && ordenParaEliminar && (
                               <ModalOverlay
                                 onClose={() => {
