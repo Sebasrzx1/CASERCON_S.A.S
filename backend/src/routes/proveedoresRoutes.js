@@ -3,6 +3,7 @@ const router = express.Router();
 
 const proveedoresController = require("../controllers/proveedoresController");
 
+
 router.get("/", proveedoresController.getAllProveedores);
 router.get("/:id", proveedoresController.getProveedorById);
 router.post("/", proveedoresController.createProveedor);
