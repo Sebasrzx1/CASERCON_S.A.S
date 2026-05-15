@@ -22,6 +22,13 @@ import {
 } from "lucide-react";
 import API_URL from "../service/api";
 
+// ── Overlay compartido ────────────────────────────────────────────────────────
+const overlayStyle = {
+  backdropFilter: "blur(6px)",
+  WebkitBackdropFilter: "blur(6px)",
+  backgroundColor: "rgba(15, 23, 42, 0.55)",
+};
+
 export default function Movimientos() {
   const { isAdministrador, fetchConAuth } = useAuth();
 
@@ -58,7 +65,18 @@ export default function Movimientos() {
   });
   const [resultadoReporte, setResultadoReporte] = useState(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
-  const [pasoReporte, setPasoReporte] = useState(1); // 1=seleccionar, 2=resultado
+  const [pasoReporte, setPasoReporte] = useState(1);
+
+  // ─── Bloquear scroll del body cuando hay un modal abierto ────────────────
+  useEffect(() => {
+    const hayModalAbierto = modalAbierto || modalReportes;
+    if (hayModalAbierto) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [modalAbierto, modalReportes]);
 
   // ── Carga de datos
   const cargarMovimientos = async () => {
@@ -92,10 +110,7 @@ export default function Movimientos() {
   };
 
   const cargarLotes = async (id_materia) => {
-    if (!id_materia) {
-      setLotes([]);
-      return;
-    }
+    if (!id_materia) { setLotes([]); return; }
     try {
       const res = await fetchConAuth(`${API_URL}/movimientos/lotes/${id_materia}`);
       if (!res) return;
@@ -117,15 +132,10 @@ export default function Movimientos() {
     const hoy = new Date().toLocaleDateString("es-CO");
     return {
       total: movimientos.length,
-      hoy: movimientos.filter(
-        (m) => new Date(m.fecha).toLocaleDateString("es-CO") === hoy,
-      ).length,
-      entradas: movimientos.filter((m) => m.tipo_movimiento === "Entrada")
-        .length,
+      hoy: movimientos.filter((m) => new Date(m.fecha).toLocaleDateString("es-CO") === hoy).length,
+      entradas: movimientos.filter((m) => m.tipo_movimiento === "Entrada").length,
       salidas: movimientos.filter((m) => m.tipo_movimiento === "Salida").length,
-      devoluciones: movimientos.filter(
-        (m) => m.tipo_movimiento === "Devolucion",
-      ).length,
+      devoluciones: movimientos.filter((m) => m.tipo_movimiento === "Devolucion").length,
     };
   }, [movimientos]);
 
@@ -136,47 +146,28 @@ export default function Movimientos() {
         m.nombre_materia?.toLowerCase().includes(busqueda.toLowerCase()) ||
         m.usuario?.toLowerCase().includes(busqueda.toLowerCase()) ||
         m.codigo_lote?.toLowerCase().includes(busqueda.toLowerCase());
-      const coincideTipo =
-        filtroTipo === "Todos" || m.tipo_movimiento === filtroTipo;
+      const coincideTipo = filtroTipo === "Todos" || m.tipo_movimiento === filtroTipo;
       const fecha = new Date(m.fecha);
-      const coincideFechaInicio =
-        !fechaInicio || fecha >= new Date(fechaInicio);
-      const coincideFechaFin =
-        !fechaFin || fecha <= new Date(fechaFin + "T23:59:59");
-      return (
-        coincideBusqueda &&
-        coincideTipo &&
-        coincideFechaInicio &&
-        coincideFechaFin
-      );
+      const coincideFechaInicio = !fechaInicio || fecha >= new Date(fechaInicio);
+      const coincideFechaFin = !fechaFin || fecha <= new Date(fechaFin + "T23:59:59");
+      return coincideBusqueda && coincideTipo && coincideFechaInicio && coincideFechaFin;
     });
   }, [movimientos, busqueda, filtroTipo, fechaInicio, fechaFin]);
 
   // ── Modal registrar
   const abrirModal = () => {
     setTipoMovimiento("Entrada");
-    setForm({
-      id_materia: "",
-      id_lote: "",
-      cantidad: "",
-      observacion: "",
-      no_orden_compra: "",
-    });
+    setForm({ id_materia: "", id_lote: "", cantidad: "", observacion: "", no_orden_compra: "" });
     setLotes([]);
-    cargarMateriasPrimas(); // Fix 2 — recargar materias al abrir modal
+    cargarMateriasPrimas();
     setModalAbierto(true);
   };
 
-  const cerrarModal = () => {
-    setModalAbierto(false);
-    setLotes([]);
-  };
+  const cerrarModal = () => { setModalAbierto(false); setLotes([]); };
 
   const handleMateriaChange = (id_materia) => {
     setForm((prev) => ({ ...prev, id_materia, id_lote: "" }));
-    if (tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") {
-      cargarLotes(id_materia);
-    }
+    if (tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") cargarLotes(id_materia);
   };
 
   const handleTipoChange = (tipo) => {
@@ -188,22 +179,11 @@ export default function Movimientos() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.id_materia) {
-      toast.error("Selecciona una materia prima");
-      return;
+    if (!form.id_materia) { toast.error("Selecciona una materia prima"); return; }
+    if (!form.cantidad || parseFloat(form.cantidad) <= 0) { toast.error("La cantidad debe ser mayor a cero"); return; }
+    if ((tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") && !form.id_lote) {
+      toast.error("Selecciona un lote"); return;
     }
-    if (!form.cantidad || parseFloat(form.cantidad) <= 0) {
-      toast.error("La cantidad debe ser mayor a cero");
-      return;
-    }
-    if (
-      (tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") &&
-      !form.id_lote
-    ) {
-      toast.error("Selecciona un lote");
-      return;
-    }
-
     setGuardando(true);
     try {
       const url =
@@ -215,32 +195,17 @@ export default function Movimientos() {
 
       const body =
         tipoMovimiento === "Entrada"
-          ? {
-              id_materia: parseInt(form.id_materia),
-              cantidad: parseFloat(form.cantidad),
-              observacion: form.observacion,
-            }
-          : {
-              id_materia: parseInt(form.id_materia),
-              id_lote: parseInt(form.id_lote),
-              cantidad: parseFloat(form.cantidad),
-              observacion: form.observacion,
-            };
+          ? { id_materia: parseInt(form.id_materia), cantidad: parseFloat(form.cantidad), observacion: form.observacion }
+          : { id_materia: parseInt(form.id_materia), id_lote: parseInt(form.id_lote), cantidad: parseFloat(form.cantidad), observacion: form.observacion };
 
-      const res = await fetchConAuth(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const res = await fetchConAuth(url, { method: "POST", body: JSON.stringify(body) });
       if (!res) return;
       const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.message || "Error al registrar");
-        return;
-      }
+      if (!res.ok) { toast.error(data.message || "Error al registrar"); return; }
       toast.success(data.message || "Movimiento registrado correctamente");
       cerrarModal();
       cargarMovimientos();
-      cargarMateriasPrimas(); // Fix 1 — recargar materias después de registrar
+      cargarMateriasPrimas();
     } catch {
       toast.error("Error de conexión");
     } finally {
@@ -248,74 +213,27 @@ export default function Movimientos() {
     }
   };
 
-  // ── Reportes
+  // ── Reportes config
   const REPORTES_CONFIG = [
-    {
-      key: "inventario",
-      icono: <Package className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "blue",
-      title: "Estado de Inventario",
-      desc: "Stock actual, niveles críticos y cobertura por materia prima",
-      sinFechas: true,
-    },
-    {
-      key: "consumo",
-      icono: <TrendingDown className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "red",
-      title: "Consumo por Materia Prima",
-      desc: "Ranking de materias más gastadas con promedio y tendencia",
-    },
-    {
-      key: "balance",
-      icono: <ArrowLeftRight className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "purple",
-      title: "Entradas vs Salidas",
-      desc: "Balance neto por categoría: ¿se repone lo que se consume?",
-    },
-    {
-      key: "proveedores",
-      icono: <Truck className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "yellow",
-      title: "Actividad por Proveedor",
-      desc: "Órdenes, KG recibidos, devoluciones y % de problemas",
-    },
-    {
-      key: "produccion",
-      icono: <Factory className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "green",
-      title: "Rendimiento de Producción",
-      desc: "Órdenes completadas, KG producidos y tiempos operativos",
-    },
-    {
-      key: "ejecutivo",
-      icono: <ClipboardList className="w-5 h-5 mt-0.5 flex-shrink-0" />,
-      color: "blue",
-      title: "Reporte Ejecutivo General",
-      desc: "Combina inventario + balance + consumo + producción + proveedores",
-    },
+    { key: "inventario", icono: <Package className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "blue", title: "Estado de Inventario", desc: "Stock actual, niveles críticos y cobertura por materia prima", sinFechas: true },
+    { key: "consumo", icono: <TrendingDown className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "red", title: "Consumo por Materia Prima", desc: "Ranking de materias más gastadas con promedio y tendencia" },
+    { key: "balance", icono: <ArrowLeftRight className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "purple", title: "Entradas vs Salidas", desc: "Balance neto por categoría: ¿se repone lo que se consume?" },
+    { key: "proveedores", icono: <Truck className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "yellow", title: "Actividad por Proveedor", desc: "Órdenes, KG recibidos, devoluciones y % de problemas" },
+    { key: "produccion", icono: <Factory className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "green", title: "Rendimiento de Producción", desc: "Órdenes completadas, KG producidos y tiempos operativos" },
+    { key: "ejecutivo", icono: <ClipboardList className="w-5 h-5 mt-0.5 flex-shrink-0" />, color: "blue", title: "Reporte Ejecutivo General", desc: "Combina inventario + balance + consumo + producción + proveedores" },
   ];
 
   const generarReporte = async () => {
-    if (!tipoReporte) {
-      toast.error("Selecciona un tipo de reporte");
-      return;
-    }
-    if (
-      filtroReporte.fecha_inicio &&
-      filtroReporte.fecha_fin &&
-      filtroReporte.fecha_inicio > filtroReporte.fecha_fin
-    ) {
-      toast.error("La fecha de inicio no puede ser posterior a la fecha de fin");
-      return;
+    if (!tipoReporte) { toast.error("Selecciona un tipo de reporte"); return; }
+    if (filtroReporte.fecha_inicio && filtroReporte.fecha_fin && filtroReporte.fecha_inicio > filtroReporte.fecha_fin) {
+      toast.error("La fecha de inicio no puede ser posterior a la fecha de fin"); return;
     }
     setCargandoReporte(true);
     try {
       const params = new URLSearchParams();
       if (filtroReporte.fecha_inicio) params.append("fecha_inicio", filtroReporte.fecha_inicio);
       if (filtroReporte.fecha_fin) params.append("fecha_fin", filtroReporte.fecha_fin);
-
-      const endpoint = `${API_URL}/reportes/${tipoReporte}?${params}`;
-      const res = await fetchConAuth(endpoint);
+      const res = await fetchConAuth(`${API_URL}/reportes/${tipoReporte}?${params}`);
       if (!res) return;
       const data = await res.json();
       setResultadoReporte(data.data);
@@ -335,25 +253,18 @@ export default function Movimientos() {
     setFiltroReporte({ fecha_inicio: "", fecha_fin: "" });
   };
 
-  const volverPaso1 = () => {
-    setPasoReporte(1);
-    setResultadoReporte(null);
-  };
+  const volverPaso1 = () => { setPasoReporte(1); setResultadoReporte(null); };
 
-  // ── Contadores de resumen para el paso 2
   const getResumenReporte = () => {
     if (!resultadoReporte) return null;
     const cfg = REPORTES_CONFIG.find(r => r.key === tipoReporte);
     const titulo = cfg?.title || "Reporte";
-
-    if (tipoReporte === "ejecutivo") {
-      return { titulo, registros: "Reporte combinado", esEjecutivo: true };
-    }
+    if (tipoReporte === "ejecutivo") return { titulo, registros: "Reporte combinado", esEjecutivo: true };
     const arr = Array.isArray(resultadoReporte) ? resultadoReporte : [];
     return { titulo, registros: arr.length };
   };
 
-  // ── Renderizar preview de resultados según tipo
+  // ── Preview tabla resultado
   const renderPreviewTabla = () => {
     if (!resultadoReporte) return null;
     const datos = Array.isArray(resultadoReporte) ? resultadoReporte : [];
@@ -514,7 +425,7 @@ export default function Movimientos() {
     return <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>;
   };
 
-  // ── IMPRIMIR REPORTE ─────────────────────────────────────────
+  // ── IMPRIMIR REPORTE (sin cambios)
   const imprimirReporte = () => {
     if (!resultadoReporte) return;
     const cfg = REPORTES_CONFIG.find(r => r.key === tipoReporte);
@@ -570,14 +481,12 @@ export default function Movimientos() {
 
     let cuerpoHTML = "";
 
-    // ── Inventario ──
     if (tipoReporte === "inventario") {
       const datos = resultadoReporte;
       const criticos = datos.filter(m => m.estado_stock === "Critico");
       const bajos = datos.filter(m => m.estado_stock === "Bajo");
       const suficientes = datos.filter(m => m.estado_stock === "Suficiente");
       const totalKg = datos.reduce((s, m) => s + Number(m.stock_actual), 0);
-
       cuerpoHTML = `
         <div class="stat-grid">
           <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${criticos.length}</span><span class="lbl" style="color:#dc2626;">Críticos</span></div>
@@ -590,19 +499,12 @@ export default function Movimientos() {
         <table>
           <thead><tr><th>#</th><th>Materia Prima</th><th>Código</th><th>Categoría</th><th style="text-align:center">Stock Mín.</th><th style="text-align:center">Stock Actual</th><th style="text-align:center">Cobertura</th><th>Estado</th></tr></thead>
           <tbody>
-            ${datos.map((m, i) => `<tr>
-              <td>${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td style="font-family:monospace;">${m.abreviacion}</td><td>${m.categoria}</td>
-              <td style="text-align:center;">${Number(m.stock_min).toFixed(0)} KG</td>
-              <td style="text-align:center;font-weight:bold;">${Number(m.stock_actual).toFixed(2)} KG</td>
-              <td style="text-align:center;">${m.porcentaje_cobertura}%</td>
-              <td><span class="badge badge-${m.estado_stock.toLowerCase()}">${m.estado_stock}</span></td>
-            </tr>`).join("")}
+            ${datos.map((m, i) => `<tr><td>${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td style="font-family:monospace;">${m.abreviacion}</td><td>${m.categoria}</td><td style="text-align:center;">${Number(m.stock_min).toFixed(0)} KG</td><td style="text-align:center;font-weight:bold;">${Number(m.stock_actual).toFixed(2)} KG</td><td style="text-align:center;">${m.porcentaje_cobertura}%</td><td><span class="badge badge-${m.estado_stock.toLowerCase()}">${m.estado_stock}</span></td></tr>`).join("")}
             <tr class="total-row"><td colspan="4">TOTAL (${datos.length} materias)</td><td style="text-align:center;">${datos.reduce((s, m) => s + Number(m.stock_min), 0).toFixed(0)} KG</td><td style="text-align:center;">${totalKg.toFixed(2)} KG</td><td colspan="2">—</td></tr>
           </tbody>
         </table>`;
     }
 
-    // ── Consumo ──
     if (tipoReporte === "consumo") {
       const datos = resultadoReporte;
       const totalKg = datos.reduce((s, m) => s + Number(m.total_consumido), 0);
@@ -611,20 +513,12 @@ export default function Movimientos() {
         <table>
           <thead><tr><th>#</th><th>Materia Prima</th><th>Categoría</th><th style="text-align:center">Movimientos</th><th style="text-align:center">Total Consumido</th><th style="text-align:center">Promedio/Mov.</th><th>Primera Salida</th><th>Última Salida</th></tr></thead>
           <tbody>
-            ${datos.map((m, i) => `<tr>
-              <td style="font-weight:bold;">${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td>${m.categoria}</td>
-              <td style="text-align:center;">${m.total_movimientos}</td>
-              <td style="text-align:center;font-weight:bold;color:#dc2626;">${Number(m.total_consumido).toFixed(2)} KG</td>
-              <td style="text-align:center;">${Number(m.promedio_por_movimiento).toFixed(2)} KG</td>
-              <td>${m.primera_salida ? new Date(m.primera_salida).toLocaleDateString("es-CO") : "—"}</td>
-              <td>${m.ultima_salida ? new Date(m.ultima_salida).toLocaleDateString("es-CO") : "—"}</td>
-            </tr>`).join("")}
+            ${datos.map((m, i) => `<tr><td style="font-weight:bold;">${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td>${m.categoria}</td><td style="text-align:center;">${m.total_movimientos}</td><td style="text-align:center;font-weight:bold;color:#dc2626;">${Number(m.total_consumido).toFixed(2)} KG</td><td style="text-align:center;">${Number(m.promedio_por_movimiento).toFixed(2)} KG</td><td>${m.primera_salida ? new Date(m.primera_salida).toLocaleDateString("es-CO") : "—"}</td><td>${m.ultima_salida ? new Date(m.ultima_salida).toLocaleDateString("es-CO") : "—"}</td></tr>`).join("")}
             <tr class="total-row"><td colspan="3">TOTAL (${datos.length} materias)</td><td style="text-align:center;">${datos.reduce((s, m) => s + Number(m.total_movimientos), 0)}</td><td style="text-align:center;">${totalKg.toFixed(2)} KG</td><td colspan="3">—</td></tr>
           </tbody>
         </table>`;
     }
 
-    // ── Balance ──
     if (tipoReporte === "balance") {
       const datos = resultadoReporte;
       const tE = datos.reduce((s, b) => s + Number(b.total_entradas), 0);
@@ -638,25 +532,17 @@ export default function Movimientos() {
           <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${tD.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Devoluciones</span></div>
           <div class="stat-box" style="background:${tB >= 0 ? "#f0fdf4" : "#fff7ed"};border-color:${tB >= 0 ? "#bbf7d0" : "#fed7aa"};"><span class="num" style="color:${tB >= 0 ? "#15803d" : "#c2410c"};">${tB >= 0 ? "+" : ""}${tB.toFixed(0)}</span><span class="lbl" style="color:${tB >= 0 ? "#15803d" : "#c2410c"};">Balance Neto KG</span></div>
         </div>
-        ${tB < 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>Balance negativo:</strong> se está consumiendo ${Math.abs(tB).toFixed(0)} KG más de lo que entra. Revisar plan de reabastecimiento.</div>` : ""}
+        ${tB < 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>Balance negativo:</strong> se está consumiendo ${Math.abs(tB).toFixed(0)} KG más de lo que entra.</div>` : ""}
         <div class="section-title">Balance por Categoría de Materia Prima</div>
         <table>
           <thead><tr><th>Categoría</th><th style="text-align:center">Entradas (KG)</th><th style="text-align:center">Salidas (KG)</th><th style="text-align:center">Devoluciones (KG)</th><th style="text-align:center">Balance Neto</th><th style="text-align:center">Movimientos</th></tr></thead>
           <tbody>
-            ${datos.map(b => `<tr>
-              <td style="font-weight:600;">${b.categoria}</td>
-              <td style="text-align:center;color:#15803d;">${Number(b.total_entradas).toFixed(2)}</td>
-              <td style="text-align:center;color:#dc2626;">${Number(b.total_salidas).toFixed(2)}</td>
-              <td style="text-align:center;color:#1d4ed8;">${Number(b.total_devoluciones).toFixed(2)}</td>
-              <td style="text-align:center;font-weight:bold;color:${Number(b.balance_neto) >= 0 ? "#15803d" : "#c2410c"};">${Number(b.balance_neto) >= 0 ? "+" : ""}${Number(b.balance_neto).toFixed(2)}</td>
-              <td style="text-align:center;">${b.total_movimientos}</td>
-            </tr>`).join("")}
+            ${datos.map(b => `<tr><td style="font-weight:600;">${b.categoria}</td><td style="text-align:center;color:#15803d;">${Number(b.total_entradas).toFixed(2)}</td><td style="text-align:center;color:#dc2626;">${Number(b.total_salidas).toFixed(2)}</td><td style="text-align:center;color:#1d4ed8;">${Number(b.total_devoluciones).toFixed(2)}</td><td style="text-align:center;font-weight:bold;color:${Number(b.balance_neto) >= 0 ? "#15803d" : "#c2410c"};">${Number(b.balance_neto) >= 0 ? "+" : ""}${Number(b.balance_neto).toFixed(2)}</td><td style="text-align:center;">${b.total_movimientos}</td></tr>`).join("")}
             <tr class="total-row"><td>TOTAL</td><td style="text-align:center;">${tE.toFixed(2)}</td><td style="text-align:center;">${tS.toFixed(2)}</td><td style="text-align:center;">${tD.toFixed(2)}</td><td style="text-align:center;">${tB >= 0 ? "+" : ""}${tB.toFixed(2)}</td><td style="text-align:center;">${datos.reduce((s, b) => s + Number(b.total_movimientos), 0)}</td></tr>
           </tbody>
         </table>`;
     }
 
-    // ── Proveedores ──
     if (tipoReporte === "proveedores") {
       const datos = resultadoReporte;
       cuerpoHTML = `
@@ -664,21 +550,11 @@ export default function Movimientos() {
         <table>
           <thead><tr><th>Proveedor</th><th>Empresa</th><th style="text-align:center">Órdenes</th><th style="text-align:center">Recibidas</th><th style="text-align:center">Pendientes</th><th style="text-align:center">KG Solicitados</th><th style="text-align:center">Devoluciones</th><th style="text-align:center">KG Devueltos</th><th style="text-align:center">% Devol.</th></tr></thead>
           <tbody>
-            ${datos.map(p => `<tr>
-              <td style="font-weight:600;">${p.nombre_proveedor}</td><td>${p.nombre_empresa || "—"}</td>
-              <td style="text-align:center;">${p.total_ordenes}</td>
-              <td style="text-align:center;color:#15803d;">${p.ordenes_recibidas}</td>
-              <td style="text-align:center;color:#a16207;">${p.ordenes_pendientes}</td>
-              <td style="text-align:center;font-weight:bold;">${Number(p.total_kg_solicitado).toFixed(2)}</td>
-              <td style="text-align:center;color:#dc2626;">${p.total_devoluciones}</td>
-              <td style="text-align:center;color:#dc2626;">${Number(p.total_kg_devuelto).toFixed(2)}</td>
-              <td style="text-align:center;font-weight:bold;color:${Number(p.porcentaje_devolucion) > 10 ? "#dc2626" : Number(p.porcentaje_devolucion) > 0 ? "#a16207" : "#15803d"};">${p.porcentaje_devolucion}%</td>
-            </tr>`).join("")}
+            ${datos.map(p => `<tr><td style="font-weight:600;">${p.nombre_proveedor}</td><td>${p.nombre_empresa || "—"}</td><td style="text-align:center;">${p.total_ordenes}</td><td style="text-align:center;color:#15803d;">${p.ordenes_recibidas}</td><td style="text-align:center;color:#a16207;">${p.ordenes_pendientes}</td><td style="text-align:center;font-weight:bold;">${Number(p.total_kg_solicitado).toFixed(2)}</td><td style="text-align:center;color:#dc2626;">${p.total_devoluciones}</td><td style="text-align:center;color:#dc2626;">${Number(p.total_kg_devuelto).toFixed(2)}</td><td style="text-align:center;font-weight:bold;color:${Number(p.porcentaje_devolucion) > 10 ? "#dc2626" : Number(p.porcentaje_devolucion) > 0 ? "#a16207" : "#15803d"};">${p.porcentaje_devolucion}%</td></tr>`).join("")}
           </tbody>
         </table>`;
     }
 
-    // ── Producción ──
     if (tipoReporte === "produccion") {
       const datos = resultadoReporte;
       const completadas = datos.filter(p => p.estado === "Completada");
@@ -694,22 +570,12 @@ export default function Movimientos() {
         <table>
           <thead><tr><th>Código</th><th>Receta</th><th style="text-align:center">KG</th><th>Estado</th><th>Creado por</th><th>Operario</th><th>Fecha Creación</th><th>Fecha Fin</th><th style="text-align:center">Horas</th></tr></thead>
           <tbody>
-            ${datos.map(p => `<tr>
-              <td style="font-family:monospace;font-weight:bold;">${p.codigo_orden || "—"}</td>
-              <td style="font-weight:600;">${p.nombre_producto}</td>
-              <td style="text-align:center;font-weight:bold;">${Number(p.cantidad_producir).toFixed(2)}</td>
-              <td><span class="badge badge-${p.estado === "Completada" ? "completada" : p.estado === "Pendiente" ? "pendiente" : "enproceso"}">${p.estado}</span></td>
-              <td>${p.usuario_creador}</td><td>${p.usuario_fin || p.usuario_inicio || "—"}</td>
-              <td>${new Date(p.fecha_creacion).toLocaleDateString("es-CO")}</td>
-              <td>${p.fecha_finalizacion ? new Date(p.fecha_finalizacion).toLocaleDateString("es-CO") : "—"}</td>
-              <td style="text-align:center;">${p.horas_produccion != null ? p.horas_produccion + "h" : "—"}</td>
-            </tr>`).join("")}
+            ${datos.map(p => `<tr><td style="font-family:monospace;font-weight:bold;">${p.codigo_orden || "—"}</td><td style="font-weight:600;">${p.nombre_producto}</td><td style="text-align:center;font-weight:bold;">${Number(p.cantidad_producir).toFixed(2)}</td><td><span class="badge badge-${p.estado === "Completada" ? "completada" : p.estado === "Pendiente" ? "pendiente" : "enproceso"}">${p.estado}</span></td><td>${p.usuario_creador}</td><td>${p.usuario_fin || p.usuario_inicio || "—"}</td><td>${new Date(p.fecha_creacion).toLocaleDateString("es-CO")}</td><td>${p.fecha_finalizacion ? new Date(p.fecha_finalizacion).toLocaleDateString("es-CO") : "—"}</td><td style="text-align:center;">${p.horas_produccion != null ? p.horas_produccion + "h" : "—"}</td></tr>`).join("")}
             <tr class="total-row"><td colspan="2">TOTAL (${datos.length} órdenes)</td><td style="text-align:center;">${datos.reduce((s, p) => s + Number(p.cantidad_producir), 0).toFixed(2)} KG</td><td colspan="6">—</td></tr>
           </tbody>
         </table>`;
     }
 
-    // ── Ejecutivo ──
     if (tipoReporte === "ejecutivo") {
       const r = resultadoReporte;
       const ri = r.resumenInventario;
@@ -723,10 +589,9 @@ export default function Movimientos() {
           <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${ri.suficientes}</span><span class="lbl" style="color:#15803d;">Suficientes</span></div>
           <div class="stat-box" style="background:#eff6ff;border-color:#bfdbfe;"><span class="num" style="color:#1d4ed8;">${ri.total_kg.toFixed(0)}</span><span class="lbl" style="color:#1d4ed8;">KG Total</span></div>
         </div>
-        ${ri.criticos > 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>${ri.criticos} materia(s) en estado CRÍTICO</strong> — se recomienda generar órdenes de recepción inmediata.</div>` : ""}
+        ${ri.criticos > 0 ? `<div class="alerta alerta-rojo">⚠️ <strong>${ri.criticos} materia(s) en estado CRÍTICO</strong></div>` : ""}
         ${r.inventarioCriticos.length > 0 ? `<table><thead><tr><th>Materia Crítica</th><th style="text-align:center">Stock Actual</th><th style="text-align:center">Stock Mínimo</th><th style="text-align:center">Cobertura</th></tr></thead><tbody>${r.inventarioCriticos.map(m => `<tr><td style="font-weight:600;">${m.nombre}</td><td style="text-align:center;color:#dc2626;font-weight:bold;">${Number(m.stock_actual).toFixed(2)} KG</td><td style="text-align:center;">${Number(m.stock_min).toFixed(0)} KG</td><td style="text-align:center;">${m.porcentaje_cobertura}%</td></tr>`).join("")}</tbody></table>` : ""}
-
-        <div class="section-title">2. Balance de Inventario (Entradas vs Salidas)</div>
+        <div class="section-title">2. Balance de Inventario</div>
         <div class="stat-grid">
           <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rb.total_entradas.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Entradas</span></div>
           <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;"><span class="num" style="color:#dc2626;">${rb.total_salidas.toFixed(0)}</span><span class="lbl" style="color:#dc2626;">KG Salidas</span></div>
@@ -734,10 +599,8 @@ export default function Movimientos() {
           <div class="stat-box" style="background:${rb.balance_neto >= 0 ? "#f0fdf4" : "#fff7ed"};border-color:${rb.balance_neto >= 0 ? "#bbf7d0" : "#fed7aa"};"><span class="num" style="color:${rb.balance_neto >= 0 ? "#15803d" : "#c2410c"};">${rb.balance_neto >= 0 ? "+" : ""}${rb.balance_neto.toFixed(0)}</span><span class="lbl" style="color:${rb.balance_neto >= 0 ? "#15803d" : "#c2410c"};">Balance Neto</span></div>
         </div>
         <table><thead><tr><th>Categoría</th><th style="text-align:center">Entradas</th><th style="text-align:center">Salidas</th><th style="text-align:center">Balance</th></tr></thead><tbody>${r.balancePorCategoria.map(b => `<tr><td>${b.categoria}</td><td style="text-align:center;color:#15803d;">${Number(b.total_entradas).toFixed(0)}</td><td style="text-align:center;color:#dc2626;">${Number(b.total_salidas).toFixed(0)}</td><td style="text-align:center;font-weight:bold;color:${Number(b.balance_neto) >= 0 ? "#15803d" : "#c2410c"};">${Number(b.balance_neto) >= 0 ? "+" : ""}${Number(b.balance_neto).toFixed(0)}</td></tr>`).join("")}</tbody></table>
-
         <div class="section-title">3. Top 10 — Materias Más Consumidas</div>
         <table><thead><tr><th>#</th><th>Materia Prima</th><th style="text-align:center">Movimientos</th><th style="text-align:center">Total Consumido</th><th style="text-align:center">Promedio/Mov.</th></tr></thead><tbody>${r.top10Consumo.map((m, i) => `<tr><td style="font-weight:bold;">${i + 1}</td><td style="font-weight:600;">${m.nombre}</td><td style="text-align:center;">${m.total_movimientos}</td><td style="text-align:center;font-weight:bold;color:#dc2626;">${Number(m.total_consumido).toFixed(2)} KG</td><td style="text-align:center;">${Number(m.promedio_por_movimiento).toFixed(2)} KG</td></tr>`).join("")}</tbody></table>
-
         <div class="section-title">4. Producción</div>
         <div class="stat-grid">
           <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rp.completadas}</span><span class="lbl" style="color:#15803d;">Completadas</span></div>
@@ -745,7 +608,6 @@ export default function Movimientos() {
           <div class="stat-box" style="background:#fefce8;border-color:#fde68a;"><span class="num" style="color:#a16207;">${rp.pendientes}</span><span class="lbl" style="color:#a16207;">Pendientes</span></div>
           <div class="stat-box" style="background:#f0fdf4;border-color:#bbf7d0;"><span class="num" style="color:#15803d;">${rp.total_kg_producidos.toFixed(0)}</span><span class="lbl" style="color:#15803d;">KG Producidos</span></div>
         </div>
-
         <div class="section-title">5. Actividad de Proveedores</div>
         <table><thead><tr><th>Proveedor</th><th>Empresa</th><th style="text-align:center">Órdenes</th><th style="text-align:center">KG Solicit.</th><th style="text-align:center">KG Devueltos</th><th style="text-align:center">% Devol.</th></tr></thead><tbody>${r.proveedores.map(p => `<tr><td style="font-weight:600;">${p.nombre_proveedor}</td><td>${p.nombre_empresa || "—"}</td><td style="text-align:center;">${p.total_ordenes}</td><td style="text-align:center;font-weight:bold;">${Number(p.total_kg_solicitado).toFixed(0)}</td><td style="text-align:center;color:#dc2626;">${Number(p.total_kg_devuelto).toFixed(0)}</td><td style="text-align:center;font-weight:bold;color:${Number(p.porcentaje_devolucion) > 10 ? "#dc2626" : "#15803d"};">${p.porcentaje_devolucion}%</td></tr>`).join("")}</tbody></table>
       `;
@@ -775,33 +637,13 @@ export default function Movimientos() {
   // ── Badge tipo movimiento
   const badgeTipo = (tipo) => {
     const cfg = {
-      Entrada: {
-        cls: "bg-green-100 text-green-700 border-green-200",
-        Icon: TrendingUp,
-        label: "Entrada",
-      },
-      Salida: {
-        cls: "bg-red-100 text-red-700 border-red-200",
-        Icon: TrendingDown,
-        label: "Salida",
-      },
-      Devolucion: {
-        cls: "bg-blue-100 text-blue-700 border-blue-200",
-        Icon: RefreshCw,
-        label: "Devolución",
-      },
-    }[tipo] ?? {
-      cls: "bg-gray-100 text-gray-700 border-gray-200",
-      Icon: Package,
-      label: tipo,
-    };
-
+      Entrada:   { cls: "bg-green-100 text-green-700 border-green-200",  Icon: TrendingUp,  label: "Entrada"    },
+      Salida:    { cls: "bg-red-100 text-red-700 border-red-200",         Icon: TrendingDown, label: "Salida"    },
+      Devolucion:{ cls: "bg-blue-100 text-blue-700 border-blue-200",      Icon: RefreshCw,   label: "Devolución" },
+    }[tipo] ?? { cls: "bg-gray-100 text-gray-700 border-gray-200", Icon: Package, label: tipo };
     return (
-      <span
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}
-      >
-        <cfg.Icon className="w-3 h-3" />
-        {cfg.label}
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+        <cfg.Icon className="w-3 h-3" />{cfg.label}
       </span>
     );
   };
@@ -811,131 +653,104 @@ export default function Movimientos() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <X className="w-12 h-12 text-red-400" />
-        <p className="text-gray-600 font-medium">
-          No tienes permisos para acceder a este módulo.
-        </p>
+        <p className="text-gray-600 font-medium">No tienes permisos para acceder a este módulo.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-bold text-gray-900 text-2xl">
-            Registro de Movimientos
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Entradas, salidas y devoluciones de inventario
-          </p>
+          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">Registro de Movimientos</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Entradas, salidas y devoluciones de inventario</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
           <button
             onClick={abrirModalReportes}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium text-sm"
           >
-            <BarChart2 className="w-5 h-5" /> Generar Reportes
+            <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" /> Generar Reportes
           </button>
           <button
             onClick={abrirModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
           >
-            <Plus className="w-5 h-5" /> Registrar Movimiento
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Registrar Movimiento
           </button>
         </div>
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Total Movimientos</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600 mb-1">Total</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.total}</p>
         </div>
-        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-          <p className="text-sm text-blue-700 mb-1">Hoy</p>
-          <p className="text-2xl font-bold text-blue-700">{stats.hoy}</p>
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-blue-700 mb-1">Hoy</p>
+          <p className="text-xl sm:text-2xl font-bold text-blue-700">{stats.hoy}</p>
         </div>
-        <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-          <p className="text-sm text-green-700 mb-1">Entradas</p>
-          <p className="text-2xl font-bold text-green-700">{stats.entradas}</p>
+        <div className="bg-green-50 rounded-lg border border-green-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-green-700 mb-1">Entradas</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-700">{stats.entradas}</p>
         </div>
-        <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-          <p className="text-sm text-red-700 mb-1">Salidas</p>
-          <p className="text-2xl font-bold text-red-700">{stats.salidas}</p>
+        <div className="bg-red-50 rounded-lg border border-red-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-red-700 mb-1">Salidas</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-700">{stats.salidas}</p>
         </div>
-        <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
-          <p className="text-sm text-purple-700 mb-1">Devoluciones</p>
-          <p className="text-2xl font-bold text-purple-700">
-            {stats.devoluciones}
-          </p>
+        <div className="col-span-2 sm:col-span-1 bg-purple-50 rounded-lg border border-purple-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-purple-700 mb-1">Devoluciones</p>
+          <p className="text-xl sm:text-2xl font-bold text-purple-700">{stats.devoluciones}</p>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-        <div className="flex flex-wrap gap-2">
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 space-y-3 sm:space-y-4">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           {["Todos", "Entrada", "Salida", "Devolucion"].map((tipo) => (
             <button
               key={tipo}
               onClick={() => setFiltroTipo(tipo)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroTipo === tipo
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              className={`flex-shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm font-medium transition-all ${
+                filtroTipo === tipo ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              {tipo === "Devolucion"
-                ? "Devoluciones"
-                : tipo === "Todos"
-                  ? "Todos"
-                  : tipo + "s"}
+              {tipo === "Devolucion" ? "Devoluciones" : tipo === "Todos" ? "Todos" : tipo + "s"}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Buscar
-            </label>
+            <label className="block text-xs text-gray-500 mb-1">Buscar</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por materia, lote o usuario..."
+                placeholder="Materia, lote o usuario..."
                 className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Fecha Inicio
-            </label>
-            <input
-              type="date"
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
+            <label className="block text-xs text-gray-500 mb-1">Fecha Inicio</label>
+            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Fecha Fin
-            </label>
-            <input
-              type="date"
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
+            <label className="block text-xs text-gray-500 mb-1">Fecha Fin</label>
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
           </div>
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      {/* Tabla — visible en md+ */}
+      <div className="hidden md:block bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         {cargando ? (
           <div className="py-16 text-center text-gray-500">Cargando...</div>
         ) : movimientosFiltrados.length === 0 ? (
@@ -948,21 +763,8 @@ export default function Movimientos() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {[
-                    "Fecha",
-                    "Tipo",
-                    "Materia Prima",
-                    "Categoría",
-                    "Lote",
-                    "Cantidad",
-                    "Usuario",
-                    "Cód. Orden",
-                    "Observación",
-                  ].map((col) => (
-                    <th
-                      key={col}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                    >
+                  {["Fecha","Tipo","Materia Prima","Categoría","Lote","Cantidad","Usuario","Cód. Orden","Observación"].map((col) => (
+                    <th key={col} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       {col}
                     </th>
                   ))}
@@ -970,42 +772,21 @@ export default function Movimientos() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {movimientosFiltrados.map((m) => (
-                  <tr
-                    key={m.id_movimiento}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
+                  <tr key={m.id_movimiento} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                       {new Date(m.fecha).toLocaleDateString("es-CO")}
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap">{badgeTipo(m.tipo_movimiento)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      {badgeTipo(m.tipo_movimiento)}
+                      <p className="text-sm font-semibold text-gray-900">{m.nombre_materia}</p>
+                      <p className="text-xs text-blue-600">{m.codigo_materia}</p>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {m.nombre_materia}
-                      </p>
-                      <p className="text-xs text-blue-600">
-                        {m.codigo_materia}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {m.categoria}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-blue-600 font-mono whitespace-nowrap">
-                      {m.codigo_lote || "-"}
-                    </td>
-                    <td className="px-4 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      {parseFloat(m.cantidad).toFixed(2)} kg
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {m.usuario}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
-                      {m.codigo_orden || "-"}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {m.observacion || "-"}
-                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{m.categoria}</td>
+                    <td className="px-4 py-4 text-sm text-blue-600 font-mono whitespace-nowrap">{m.codigo_lote || "-"}</td>
+                    <td className="px-4 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{parseFloat(m.cantidad).toFixed(2)} kg</td>
+                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{m.usuario}</td>
+                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{m.codigo_orden || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-gray-500 max-w-xs truncate">{m.observacion || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1014,84 +795,98 @@ export default function Movimientos() {
         )}
       </div>
 
-      {/* Modal Registrar Movimiento */}
+      {/* Tarjetas — visible en móvil (< md) */}
+      <div className="md:hidden space-y-3">
+        {cargando ? (
+          <div className="bg-white rounded-lg border border-gray-200 px-6 py-12 text-center text-gray-500">Cargando...</div>
+        ) : movimientosFiltrados.length === 0 ? (
+          <div className="bg-white rounded-lg border border-gray-200 px-6 py-12 text-center">
+            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">No hay movimientos registrados</p>
+          </div>
+        ) : (
+          movimientosFiltrados.map((m) => (
+            <div key={m.id_movimiento} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm truncate">{m.nombre_materia}</p>
+                  <p className="text-xs text-blue-600">{m.codigo_materia}</p>
+                </div>
+                {badgeTipo(m.tipo_movimiento)}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                <div className="bg-gray-50 rounded p-2">
+                  <p className="text-gray-500 mb-0.5">Cantidad</p>
+                  <p className="font-semibold text-gray-900">{parseFloat(m.cantidad).toFixed(2)} kg</p>
+                </div>
+                <div className="bg-gray-50 rounded p-2">
+                  <p className="text-gray-500 mb-0.5">Fecha</p>
+                  <p className="font-semibold text-gray-900">{new Date(m.fecha).toLocaleDateString("es-CO")}</p>
+                </div>
+                <div className="bg-gray-50 rounded p-2">
+                  <p className="text-gray-500 mb-0.5">Lote</p>
+                  <p className="font-semibold text-blue-600 font-mono">{m.codigo_lote || "-"}</p>
+                </div>
+                <div className="bg-gray-50 rounded p-2">
+                  <p className="text-gray-500 mb-0.5">Usuario</p>
+                  <p className="font-semibold text-gray-900 truncate">{m.usuario}</p>
+                </div>
+              </div>
+              {m.observacion && (
+                <p className="text-xs text-gray-500 pt-2 border-t border-gray-100 truncate">
+                  <span className="font-medium">Obs:</span> {m.observacion}
+                </p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── Modal Registrar Movimiento ─────────────────────────────────────── */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center gap-3 p-6 border-b border-gray-200">
-              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center">
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={overlayStyle}>
+          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center gap-3 p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Plus className="w-5 h-5 text-white" />
               </div>
-              <h2 className="font-bold text-gray-900 text-xl">
-                Registrar Movimiento
-              </h2>
-              <button
-                onClick={cerrarModal}
-                className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
-              >
+              <h2 className="font-bold text-gray-900 text-lg sm:text-xl">Registrar Movimiento</h2>
+              <button onClick={cerrarModal} className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
               {/* Selector tipo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Tipo de Movimiento
-                </label>
-                <div className="grid grid-cols-3 gap-3">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Tipo de Movimiento</label>
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   {[
-                    {
-                      key: "Entrada",
-                      icono: <TrendingUp className="w-6 h-6" />,
-                      color: "green",
-                      label: "Entrada",
-                    },
-                    {
-                      key: "Salida",
-                      icono: <TrendingDown className="w-6 h-6" />,
-                      color: "red",
-                      label: "Salida",
-                    },
-                    {
-                      key: "Devolucion",
-                      icono: <RefreshCw className="w-6 h-6" />,
-                      color: "blue",
-                      label: "Devolución",
-                    },
+                    { key: "Entrada",    icono: <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />,  color: "green",  label: "Entrada"    },
+                    { key: "Salida",     icono: <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6" />, color: "red",    label: "Salida"     },
+                    { key: "Devolucion", icono: <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6" />,   color: "blue",   label: "Devolución" },
                   ].map(({ key, icono, color, label }) => (
                     <button
                       key={key}
                       type="button"
                       onClick={() => handleTipoChange(key)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      className={`flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl border-2 transition-all ${
                         tipoMovimiento === key
                           ? `border-${color}-500 bg-${color}-50`
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
-                      <span
-                        className={
-                          tipoMovimiento === key
-                            ? `text-${color}-600`
-                            : "text-gray-400"
-                        }
-                      >
-                        {icono}
-                      </span>
-                      <span
-                        className={`text-sm font-semibold ${tipoMovimiento === key ? `text-${color}-700` : "text-gray-600"}`}
-                      >
-                        {label}
-                      </span>
+                      <span className={tipoMovimiento === key ? `text-${color}-600` : "text-gray-400"}>{icono}</span>
+                      <span className={`text-xs sm:text-sm font-semibold ${tipoMovimiento === key ? `text-${color}-700` : "text-gray-600"}`}>{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Materia prima + cantidad */}
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Materia Prima *</label>
                   <select
                     value={form.id_materia}
                     onChange={(e) => handleMateriaChange(e.target.value)}
@@ -1105,69 +900,49 @@ export default function Movimientos() {
                     ))}
                   </select>
                 </div>
-                <div className="w-32">
+                <div className="sm:w-32">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad (kg) *</label>
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
                     value={form.cantidad}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, cantidad: e.target.value }))
-                    }
+                    onChange={(e) => setForm((prev) => ({ ...prev, cantidad: e.target.value }))}
                     placeholder="100"
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
               </div>
 
-              {/* Lote (solo salida) */}
-{/* Lote (solo salida y devolución) */}
-{(tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") && (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      Lote *
-    </label>
-    <select
-      value={form.id_lote}
-      onChange={(e) =>
-        setForm((prev) => ({ ...prev, id_lote: e.target.value }))
-      }
-      disabled={!form.id_materia}
-      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-50"
-    >
-      <option value="">
-        {form.id_materia
-          ? "Selecciona lote..."
-          : "Primero selecciona materia prima"}
-      </option>
-      {lotes.map((l) => (
-        <option key={l.id_lote} value={l.id_lote}>
-          {l.codigo_lote} — Disponible:{" "}
-          {parseFloat(l.stock_restante).toFixed(2)} kg
-        </option>
-      ))}
-    </select>
-    {form.id_materia && lotes.length === 0 && (
-      <p className="text-xs text-red-500 mt-1">
-        No hay lotes activos para esta materia prima
-      </p>
-    )}
-  </div>
-)}
+              {/* Lote (solo salida y devolución) */}
+              {(tipoMovimiento === "Salida" || tipoMovimiento === "Devolucion") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
+                  <select
+                    value={form.id_lote}
+                    onChange={(e) => setForm((prev) => ({ ...prev, id_lote: e.target.value }))}
+                    disabled={!form.id_materia}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-50"
+                  >
+                    <option value="">{form.id_materia ? "Selecciona lote..." : "Primero selecciona materia prima"}</option>
+                    {lotes.map((l) => (
+                      <option key={l.id_lote} value={l.id_lote}>
+                        {l.codigo_lote} — Disponible: {parseFloat(l.stock_restante).toFixed(2)} kg
+                      </option>
+                    ))}
+                  </select>
+                  {form.id_materia && lotes.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">No hay lotes activos para esta materia prima</p>
+                  )}
+                </div>
+              )}
 
               {/* Observaciones */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observaciones (opcional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones (opcional)</label>
                 <textarea
                   value={form.observacion}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      observacion: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setForm((prev) => ({ ...prev, observacion: e.target.value }))}
                   placeholder="Detalles adicionales del movimiento..."
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
@@ -1175,18 +950,18 @@ export default function Movimientos() {
               </div>
 
               {/* Botones */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-2 pb-1">
                 <button
                   type="button"
                   onClick={cerrarModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={guardando}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
                 >
                   {guardando ? "Registrando..." : "Registrar Movimiento"}
                 </button>
@@ -1196,46 +971,46 @@ export default function Movimientos() {
         </div>
       )}
 
-      {/* Modal Generar Reportes */}
+      {/* ── Modal Generar Reportes ──────────────────────────────────────────── */}
       {modalReportes && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={overlayStyle}>
+          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center gap-3 p-5 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-center gap-3 p-4 sm:p-5 border-b border-gray-200 flex-shrink-0">
               {pasoReporte === 2 && (
                 <button onClick={volverPaso1} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
                   <ArrowLeft className="w-5 h-5" />
                 </button>
               )}
-              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center flex-shrink-0">
                 <BarChart2 className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <h2 className="font-bold text-gray-900 text-lg">
+              <div className="min-w-0">
+                <h2 className="font-bold text-gray-900 text-base sm:text-lg">
                   {pasoReporte === 1 ? "Reportes Estratégicos" : getResumenReporte()?.titulo || "Resultado"}
                 </h2>
                 <p className="text-xs text-gray-500">
                   {pasoReporte === 1 ? "Seleccione tipo de reporte y rango de fechas" : "Vista previa del reporte generado"}
                 </p>
               </div>
-              <button onClick={() => setModalReportes(false)} className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setModalReportes(false)} className="ml-auto p-2 text-gray-400 hover:bg-gray-100 rounded-lg flex-shrink-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* ═══ PASO 1: Seleccionar tipo ═══ */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              {/* PASO 1 */}
               {pasoReporte === 1 && (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">Tipo de Reporte</label>
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {REPORTES_CONFIG.map(({ key, icono, color, title, desc }) => (
                         <button
                           key={key}
                           type="button"
                           onClick={() => setTipoReporte(key)}
-                          className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${
+                          className={`flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border-2 text-left transition-all ${
                             tipoReporte === key
                               ? key === "ejecutivo"
                                 ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 ring-1 ring-blue-200"
@@ -1245,13 +1020,9 @@ export default function Movimientos() {
                                 : "border-gray-200 hover:border-gray-300"
                           }`}
                         >
-                          <span className={tipoReporte === key ? `text-${color}-600` : "text-gray-400"}>
-                            {icono}
-                          </span>
-                          <div>
-                            <p className={`text-sm font-semibold ${
-                              tipoReporte === key ? `text-${color}-700` : "text-gray-700"
-                            }`}>{title}</p>
+                          <span className={tipoReporte === key ? `text-${color}-600` : "text-gray-400"}>{icono}</span>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold ${tipoReporte === key ? `text-${color}-700` : "text-gray-700"}`}>{title}</p>
                             <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
                           </div>
                           {tipoReporte === key && (
@@ -1262,9 +1033,9 @@ export default function Movimientos() {
                     </div>
                   </div>
 
-                  {/* Fechas — se ocultan si el reporte no necesita fechas */}
+                  {/* Fechas opcionales */}
                   {tipoReporte && !REPORTES_CONFIG.find(r => r.key === tipoReporte)?.sinFechas && (
-                    <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                       <label className="block text-sm font-medium text-gray-700 mb-3">Rango de Fechas (Opcional)</label>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1293,48 +1064,44 @@ export default function Movimientos() {
                   <div className="flex gap-3 pt-1">
                     <button
                       onClick={() => setModalReportes(false)}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                      className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                     >
                       Cerrar
                     </button>
                     <button
                       onClick={generarReporte}
                       disabled={cargandoReporte || !tipoReporte}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
                     >
-                      {cargandoReporte ? (
-                        <><RefreshCw className="w-4 h-4 animate-spin" /> Generando...</>
-                      ) : (
-                        <><BarChart2 className="w-4 h-4" /> Generar Reporte</>
-                      )}
+                      {cargandoReporte
+                        ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generando...</>
+                        : <><BarChart2 className="w-4 h-4" /> Generar Reporte</>
+                      }
                     </button>
                   </div>
                 </>
               )}
 
-              {/* ═══ PASO 2: Resultado ═══ */}
+              {/* PASO 2 */}
               {pasoReporte === 2 && resultadoReporte && (
                 <>
-                  {/* Preview de datos */}
                   {renderPreviewTabla()}
-
-                  {/* Botones de acción */}
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={volverPaso1}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                     >
                       <ArrowLeft className="w-4 h-4" /> Volver
                     </button>
                     <button
                       onClick={imprimirReporte}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors text-sm font-medium"
                     >
                       <Printer className="w-4 h-4" /> Imprimir / Exportar PDF
                     </button>
                     <button
                       onClick={() => setModalReportes(false)}
-                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                     >
                       Cerrar
                     </button>

@@ -1,7 +1,7 @@
 const express = require("express");
 const router  = express.Router();
 const { protect } = require("../middlewares/authMiddleware");
-const checkUserActivo = require("../middlewares/checkUserActivo"); // ← agregar
+const checkUserActivo = require("../middlewares/checkUserActivo");
 const PedidosController = require("../controllers/pedidosController");
 
 router.get("/proveedores", protect, checkUserActivo, PedidosController.getProveedores);

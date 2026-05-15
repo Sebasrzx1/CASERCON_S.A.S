@@ -37,6 +37,17 @@ export default function Recetas() {
 
   const getToken = () => localStorage.getItem("token");
 
+  // ─── Bloquear scroll del body cuando hay un modal abierto ────────────────
+  useEffect(() => {
+    const hayModalAbierto = modalAbierto || confirmOpen;
+    if (hayModalAbierto) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [modalAbierto, confirmOpen]);
+
   const cargarRecetas = async () => {
     setCargando(true);
     try {
@@ -236,7 +247,13 @@ export default function Recetas() {
     setExpandidas(copia);
   };
 
-  // Guard después de todos los hooks
+  // ─── Overlay compartido ───────────────────────────────────────────────────
+  const overlayStyle = {
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+  };
+
   if (!isAdministrador) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -249,72 +266,71 @@ export default function Recetas() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-bold text-gray-900 text-2xl">Recetas</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">Recetas</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Gestión de fórmulas de producción
           </p>
         </div>
         <button
           onClick={abrirModalNuevo}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
         >
-          <Plus className="w-5 h-5" /> Nueva Receta
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Nueva Receta
         </button>
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Total Recetas</p>
-          <p className="text-2xl font-bold text-gray-900">{recetas.length}</p>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600 mb-1">Total</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{recetas.length}</p>
         </div>
-        <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-          <p className="text-sm text-green-700 mb-1">Habilitadas</p>
-          <p className="text-2xl font-bold text-green-700">
+        <div className="bg-green-50 rounded-lg border border-green-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-green-700 mb-1">Habilitadas</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-700">
             {recetas.filter((r) => r.estado === "Activo").length}
           </p>
         </div>
-        <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-          <p className="text-sm text-red-700 mb-1">Inhabilitadas</p>
-          <p className="text-2xl font-bold text-red-700">
+        <div className="bg-red-50 rounded-lg border border-red-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-red-700 mb-1">Inhabilitadas</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-700">
             {recetas.filter((r) => r.estado === "Inhabilitado").length}
           </p>
         </div>
       </div>
 
       {/* Filtros y buscador */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="flex gap-2">
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setFiltroEstado("Activo")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filtroEstado === "Activo"
                 ? "bg-green-600 text-white"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
               <Check className="w-4 h-4" />
-              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length}
-              )
+              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length})
             </span>
           </button>
           <button
             onClick={() => setFiltroEstado("Inhabilitado")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filtroEstado === "Inhabilitado"
                 ? "bg-red-600 text-white"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
               <Ban className="w-4 h-4" />
-              Inhabilitadas (
-              {recetas.filter((r) => r.estado === "Inhabilitado").length})
+              Inhabilitadas ({recetas.filter((r) => r.estado === "Inhabilitado").length})
             </span>
           </button>
         </div>
@@ -322,8 +338,8 @@ export default function Recetas() {
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre de receta..."
-          className="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          placeholder="Buscar receta..."
+          className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </div>
 
@@ -336,20 +352,19 @@ export default function Recetas() {
           <p className="text-gray-500">No se encontraron recetas</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {recetasFiltradas.map((r) => (
             <div
               key={r.id_receta}
               className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              {/* Header de la card */}
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                    <FlaskConical className="w-6 h-6 text-blue-500" />
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <FlaskConical className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-base">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">
                       {r.nombre_producto}
                     </h3>
                     <span
@@ -360,55 +375,50 @@ export default function Recetas() {
                       }`}
                     >
                       {r.estado === "Activo" ? (
-                        <>
-                          <Check className="w-3 h-3" /> Habilitada
-                        </>
+                        <><Check className="w-3 h-3" /> Habilitada</>
                       ) : (
-                        <>
-                          <Ban className="w-3 h-3" /> Inhabilitada
-                        </>
+                        <><Ban className="w-3 h-3" /> Inhabilitada</>
                       )}
                     </span>
                   </div>
                 </div>
 
-                {/* Botones acciones */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-2">
                   <button
                     onClick={() => toggleExpandir(r.id_receta)}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-1.5 sm:p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Ver ingredientes"
                   >
                     {expandidas.has(r.id_receta) ? (
-                      <ChevronUp className="w-5 h-5" />
+                      <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
                     ) : (
-                      <ChevronDown className="w-5 h-5" />
+                      <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </button>
                   {r.estado === "Activo" ? (
                     <>
                       <button
                         onClick={() => abrirModalEditar(r)}
-                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 sm:p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Editar"
                       >
-                        <Edit className="w-5 h-5" />
+                        <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                       <button
                         onClick={() => solicitarAccion(r, "inhabilitar")}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 sm:p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         title="Inhabilitar"
                       >
-                        <Ban className="w-5 h-5" />
+                        <Ban className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </>
                   ) : (
                     <button
                       onClick={() => solicitarAccion(r, "habilitar")}
-                      className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors"
+                      className="p-1.5 sm:p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors"
                       title="Habilitar"
                     >
-                      <Check className="w-5 h-5" />
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   )}
                 </div>
@@ -416,7 +426,7 @@ export default function Recetas() {
 
               {/* Ingredientes expandibles */}
               {expandidas.has(r.id_receta) && (
-                <div className="border-t border-gray-100 px-6 py-4">
+                <div className="border-t border-gray-100 px-4 sm:px-6 py-3 sm:py-4">
                   <p className="text-sm font-semibold text-gray-700 mb-3">
                     Ingredientes (Porcentajes)
                   </p>
@@ -424,46 +434,39 @@ export default function Recetas() {
                     {r.ingredientes?.map((ing) => (
                       <div
                         key={ing.id_detalle_receta}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        className="flex items-center justify-between p-2.5 sm:p-3 bg-gray-50 rounded-lg border border-gray-200"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
-                            <Package className="w-4 h-4 text-gray-400" />
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white rounded-lg border border-gray-200 flex items-center justify-center flex-shrink-0">
+                            <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">
                               {ing.nombre_materia}
                             </p>
-                            <p className="text-xs text-blue-600">
-                              Código: {ing.codigo}
+                            <p className="text-xs text-blue-600 truncate">
+                              {ing.codigo}
                               <span className="text-gray-400 mx-1">•</span>
-                              <span className="text-gray-500">
-                                {ing.categoria}
-                              </span>
+                              <span className="text-gray-500">{ing.categoria}</span>
                             </p>
                           </div>
                         </div>
-                        <span className="font-bold text-gray-900 text-sm">
+                        <span className="font-bold text-gray-900 text-sm flex-shrink-0 ml-2">
                           {parseFloat(ing.cantidad_porcentaje).toFixed(1)}%
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  {/* Total */}
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Total
-                    </span>
+                    <span className="text-sm font-semibold text-gray-700">Total</span>
                     <span className="font-bold text-gray-900 text-sm">
                       {r.ingredientes
                         ?.reduce(
-                          (sum, ing) =>
-                            sum + parseFloat(ing.cantidad_porcentaje),
+                          (sum, ing) => sum + parseFloat(ing.cantidad_porcentaje),
                           0,
                         )
-                        .toFixed(2)}
-                      %
+                        .toFixed(2)}%
                     </span>
                   </div>
                 </div>
@@ -473,12 +476,15 @@ export default function Recetas() {
         </div>
       )}
 
-      {/* Modal Crear / Editar */}
+      {/* ── Modal Crear / Editar ── */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="font-bold text-gray-900 text-xl">
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-50"
+          style={overlayStyle}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+              <h2 className="font-bold text-gray-900 text-lg sm:text-xl">
                 {editando ? "Editar Receta" : "Nueva Receta"}
               </h2>
               <button
@@ -490,7 +496,7 @@ export default function Recetas() {
             </div>
             <form
               onSubmit={handleSubmit}
-              className="p-6 space-y-5 overflow-y-auto flex-1"
+              className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1"
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -503,22 +509,23 @@ export default function Recetas() {
                   value={nombreProducto}
                   onChange={(e) => setNombreProducto(e.target.value)}
                   placeholder="Ej: Pintura Blanca Mate"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
+
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700">
                     Ingredientes *
                   </label>
                   <span
-                    className={`text-sm font-medium px-2 py-0.5 rounded-full ${
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                       Math.abs(sumaPorcentajes - 100) <= 0.01
                         ? "bg-green-100 text-green-700"
                         : "bg-red-100 text-red-700"
                     }`}
                   >
-                    Suma: {sumaPorcentajes.toFixed(2)}% / 100%
+                    {sumaPorcentajes.toFixed(2)}% / 100%
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -528,17 +535,12 @@ export default function Recetas() {
                         required
                         value={ing.id_materia}
                         onChange={(e) =>
-                          actualizarIngrediente(
-                            index,
-                            "id_materia",
-                            e.target.value,
-                          )
+                          actualizarIngrediente(index, "id_materia", e.target.value)
                         }
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       >
-                        <option value="">Selecciona materia prima...</option>
+                        <option value="">Materia prima...</option>
                         {materiasPrimas.map((mp) => {
-                          // Está en uso si otro ingrediente (no el actual) ya la seleccionó
                           const enUso = ingredientes.some(
                             (otro, i) =>
                               i !== index &&
@@ -550,14 +552,13 @@ export default function Recetas() {
                               value={mp.id_materia}
                               disabled={enUso}
                             >
-                              {mp.nombre}
-                              {enUso ? " (ya agregada)" : ""}
+                              {mp.nombre}{enUso ? " (ya agregada)" : ""}
                             </option>
                           );
                         })}
                       </select>
 
-                      <div className="relative w-32">
+                      <div className="relative w-24 flex-shrink-0">
                         <input
                           type="number"
                           required
@@ -566,23 +567,19 @@ export default function Recetas() {
                           step="0.01"
                           value={ing.cantidad_porcentaje}
                           onChange={(e) =>
-                            actualizarIngrediente(
-                              index,
-                              "cantidad_porcentaje",
-                              e.target.value,
-                            )
+                            actualizarIngrediente(index, "cantidad_porcentaje", e.target.value)
                           }
                           placeholder="0.00"
-                          className="w-full px-4 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 pr-7 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
                           %
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => quitarIngrediente(index)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -597,24 +594,21 @@ export default function Recetas() {
                   <Plus className="w-4 h-4" /> Agregar ingrediente
                 </button>
               </div>
-              <div className="flex gap-3 pt-2">
+
+              <div className="flex gap-3 pt-2 pb-1">
                 <button
                   type="button"
                   onClick={cerrarModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
-                  {guardando
-                    ? "Guardando..."
-                    : editando
-                      ? "Guardar Cambios"
-                      : "Crear Receta"}
+                  {guardando ? "Guardando..." : editando ? "Guardar Cambios" : "Crear Receta"}
                 </button>
               </div>
             </form>
@@ -622,33 +616,29 @@ export default function Recetas() {
         </div>
       )}
 
-      {/* Confirm Dialog */}
+      {/* ── Confirm Dialog ── */}
       {confirmOpen && confirmData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-50"
+          style={overlayStyle}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-sm p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
               {confirmData.accion === "inhabilitar" ? (
-                <Ban className="w-8 h-8 text-red-500" />
+                <Ban className="w-7 h-7 sm:w-8 sm:h-8 text-red-500 flex-shrink-0" />
               ) : (
-                <Check className="w-8 h-8 text-green-500" />
+                <Check className="w-7 h-7 sm:w-8 sm:h-8 text-green-500 flex-shrink-0" />
               )}
-              <h2 className="font-bold text-gray-900 text-lg">
-                {confirmData.accion === "inhabilitar"
-                  ? "Inhabilitar"
-                  : "Habilitar"}{" "}
-                Receta
+              <h2 className="font-bold text-gray-900 text-base sm:text-lg">
+                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} Receta
               </h2>
             </div>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-5 text-sm sm:text-base">
               ¿Estás seguro de que deseas{" "}
-              {confirmData.accion === "inhabilitar"
-                ? "inhabilitar"
-                : "habilitar"}{" "}
-              la receta{" "}
+              {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"} la receta{" "}
               <span className="font-semibold text-gray-900">
                 "{confirmData.receta.nombre_producto}"
-              </span>
-              ?
+              </span>?
               {confirmData.accion === "inhabilitar" && (
                 <span className="block mt-2 text-sm text-red-600">
                   No podrá usarse en nuevas órdenes de producción.
@@ -657,25 +647,20 @@ export default function Recetas() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  setConfirmOpen(false);
-                  setConfirmData(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarAccion}
-                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                className={`flex-1 px-4 py-2.5 text-white rounded-lg transition-colors text-sm font-medium ${
                   confirmData.accion === "inhabilitar"
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-green-600 hover:bg-green-700"
                 }`}
               >
-                {confirmData.accion === "inhabilitar"
-                  ? "Inhabilitar"
-                  : "Habilitar"}
+                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"}
               </button>
             </div>
           </div>
