@@ -1,11 +1,11 @@
 node_modules
+.pnpm-store
+
 npm-debug.log
+pnpm-debug.log
 
 .env
 .env.*
 
 .git
 .gitignore
-
-Dockerfile
-docker-compose.yml

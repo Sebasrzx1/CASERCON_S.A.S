@@ -8,11 +8,13 @@ WORKDIR /app
 
 #Copiar el package.json y package-lock.json para instalar dependencias
 #
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
 #Instalar dependencias
 #Instala nod_modules
-RUN npm install
+RUN corepack enable
+RUN npm config set only-built-dependencies bcrypt
+RUN pnpm install
 
 #Copiar el resto del código de la aplicación
 COPY . .
@@ -22,4 +24,4 @@ COPY . .
 EXPOSE 3000
 
 #Comando para iniciar la aplicación
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

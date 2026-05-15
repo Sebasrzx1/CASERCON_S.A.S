@@ -15,6 +15,7 @@ import {
   Users,
   Search,
   Calendar,
+  Ban,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -33,7 +34,9 @@ export default function ProduccionPage() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState("Pendiente");
   const [modalConfirmarInicio, setModalConfirmarInicio] = useState(false);
+  const [modalConfirmarEliminar, setModalConfirmarEliminar] = useState(false);
   const [ordenParaIniciar, setOrdenParaIniciar] = useState(null);
+  const [ordenParaEliminar, setOrdenParaEliminar] = useState(null);
   const [modalConfirmarFinalizar, setModalConfirmarFinalizar] = useState(false);
   const [ordenParaFinalizar, setOrdenParaFinalizar] = useState(null);
 
@@ -84,9 +87,7 @@ export default function ProduccionPage() {
   const fetchProducciones = async () => {
     try {
       setLoading(true);
-      const res = await fetchConAuth(
-        `${API_URL}/produccion`,
-      );
+      const res = await fetchConAuth(`${API_URL}/produccion`);
       if (!res) return; // fue inhabilitado, ya lo redirigió
 
       const data = await res.json();
@@ -112,9 +113,7 @@ export default function ProduccionPage() {
 
   const fetchMateriasPrimas = async () => {
     try {
-      const res = await fetchConAuth(
-        `${API_URL}/materias-primas`,
-      );
+      const res = await fetchConAuth(`${API_URL}/materias-primas`);
       if (!res) return;
       const data = await res.json();
       setMateriasPrimas(Array.isArray(data) ? data : []);
@@ -125,9 +124,7 @@ export default function ProduccionPage() {
 
   const fetchOperarios = async () => {
     try {
-      const res = await fetchConAuth(
-        `${API_URL}/produccion/operarios`,
-      );
+      const res = await fetchConAuth(`${API_URL}/produccion/operarios`);
       if (!res) return;
       const data = await res.json();
       setOperarios(Array.isArray(data.data) ? data.data : []);
@@ -214,16 +211,13 @@ export default function ProduccionPage() {
   const crearProduccion = async () => {
     // ... validaciones igual que antes ...
     try {
-      const res = await fetchConAuth(
-        `${API_URL}/produccion`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            id_receta: Number(formulario.id_receta),
-            cantidad_producir: Number(formulario.cantidad_producir),
-          }),
-        },
-      );
+      const res = await fetchConAuth(`${API_URL}/produccion`, {
+        method: "POST",
+        body: JSON.stringify({
+          id_receta: Number(formulario.id_receta),
+          cantidad_producir: Number(formulario.cantidad_producir),
+        }),
+      });
       if (!res) return;
       const data = await res.json();
       if (data.status === "error") {
@@ -313,13 +307,12 @@ export default function ProduccionPage() {
   const eliminarProduccion = async (id, nombre) => {
     // ... confirm igual que antes ...
     try {
-      const res = await fetchConAuth(
-        `${API_URL}/produccion/${id}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const res = await fetchConAuth(`${API_URL}/produccion/${ordenParaEliminar.id}`, {
+        method: "DELETE",
+      });
       if (!res) return;
+      setModalConfirmarEliminar(false);
+      setOrdenParaEliminar(null);
       fetchProducciones();
       toast.success("Orden eliminada correctamente");
     } catch (error) {
@@ -1199,8 +1192,8 @@ export default function ProduccionPage() {
                           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                             <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
                               <div className="flex items-start gap-4 mb-6">
-                                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <Ban className="w-6 h-6 text-red-600" />
                                 </div>
                                 <div>
                                   <h2 className="font-bold text-gray-900 text-lg mb-1">
@@ -1253,17 +1246,65 @@ export default function ProduccionPage() {
                               Editar
                             </button>
                             <button
-                              onClick={() =>
-                                eliminarProduccion(
-                                  p.id_orden_produccion,
-                                  p.nombre_producto,
-                                )
-                              }
+                              onClick={() => {
+                                setOrdenParaEliminar(p);
+                                setModalConfirmarEliminar(true);
+                              }}
                               className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                             >
                               <Trash2 className="w-4 h-4" />
                               Eliminar
                             </button>
+
+                            {/* ── Modal Confirmar Eliminar ──
+                            {modalConfirmarEliminar && ordenParaEliminar && (
+                              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                                  <div className="flex items-start gap-4 mb-6">
+                                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                      <Trash2 className="w-6 h-6 text-red-600" />
+                                    </div>
+                                    <div>
+                                      <h2 className="font-bold text-gray-900 text-lg mb-1">
+                                        Eliminar Orden de Producción
+                                      </h2>
+                                      <p className="text-gray-600 text-sm">
+                                        ¿Confirma que desea eliminar la orden de{" "}
+                                        <strong>
+                                          "{ordenParaEliminar.nombre_producto}"
+                                        </strong>{" "}
+                                        por{" "}
+                                        <strong>
+                                          {ordenParaEliminar.cantidad_producir}{" "}
+                                          KG
+                                        </strong>
+                                        ? Esta accion no se puede deshacer. 
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setModalConfirmarEliminar(false);
+                                        setOrdenParaEliminar(null);
+                                      }}
+                                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={eliminarProduccion}
+                                      className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium"
+                                    >
+                                      Confirmar
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )} */}
                           </>
                         )}
                       </>

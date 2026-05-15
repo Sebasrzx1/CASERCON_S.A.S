@@ -150,7 +150,7 @@ export default function Usuarios() {
       return;
     }
     try {
-      const res = await fetch("${API_URL}/usuarios", {
+      const res = await fetch(`${API_URL}/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formulario, rol: "Operario" }),

@@ -10,10 +10,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Agrega esto temporalmente
-console.log("GMAIL_USER:", process.env.GMAIL_USER);
-console.log("GMAIL_APP_PASS:", process.env.GMAIL_APP_PASS);
-
 const EmailService = {
   async sendPasswordReset(destinatario, codigo) {
     const mailOptions = {

@@ -28,7 +28,7 @@ const UserService = {
       id_rol,
     });
 
-    // 🔥 asignar procesos
+    // asignar procesos
     if (procesos?.length) {
       for (const proceso of procesos) {
         const procesoDB = await UserModel.getProcesoByNombre(proceso);
