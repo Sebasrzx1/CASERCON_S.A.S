@@ -16,9 +16,11 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: casercon_frontend
+    container_name: casercon_frontend_dev
     ports:
       - "5173:5173"
+    env_file:
+      - ./frontend/.env.development
     volumes:
       - ./frontend:/app
       - /app/node_modules

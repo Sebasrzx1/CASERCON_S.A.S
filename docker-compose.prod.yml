@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: casercon_backend_prod
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/.env.production
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: casercon_frontend_prod
+    ports:
+      - "80:80"
+    env_file:
+      - ./frontend/.env.production
+    depends_on:
+      - backend
+    restart: unless-stopped
