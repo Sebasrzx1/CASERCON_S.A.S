@@ -5,6 +5,6 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    allowedHosts: "all",
+    allowedHosts: "reasonable-compassion-production-1101.up.railway.app",
   },
 });

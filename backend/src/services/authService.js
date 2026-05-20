@@ -61,7 +61,6 @@ const AuthService = {
     //Guardar codigo en DB (con expiracion a 15 min)
     await UserModel.saveCodigoRecuperacion(user.id_usuario, codigo);
 
-    // ── Agrega esto temporalmente ──
     try {
       await EmailService.sendPasswordReset(user.email, codigo);
       console.log("✅ Correo enviado a:", user.email);
