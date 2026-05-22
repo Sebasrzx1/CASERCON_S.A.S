@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, use } from "react";
+import React, { useEffect, useState, useMemo, useRef, use } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Factory,
   Plus,
@@ -40,6 +41,10 @@ const ModalOverlay = ({ children, onClose }) => (
 export default function ProduccionPage() {
   const { isAdministrador, user } = useAuth();
   const { fetchConAuth } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("id");
+  const [highlightedId, setHighlightedId] = useState(null);
+  const cardRefs = useRef({});
 
   const [producciones, setProducciones] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -149,6 +154,37 @@ export default function ProduccionPage() {
     fetchMateriasPrimas();
     if (isAdministrador) fetchOperarios();
   }, []);
+
+  // ── Manejar navegación con ?id=X desde Movimientos ───────────────
+  useEffect(() => {
+    if (!highlightId || producciones.length === 0) return;
+    const idNum = parseInt(highlightId);
+    const target = producciones.find((p) => p.id_orden_produccion === idNum);
+
+    const aplicar = setTimeout(() => {
+      if (!target) {
+        toast.error("No se encontró la orden de producción referenciada");
+        setSearchParams({});
+        return;
+      }
+
+      setFiltroEstado(target.estado);
+      setFechaInicio("");
+      setFechaFin("");
+      setBusqueda("");
+      setHighlightedId(idNum);
+      setSearchParams({});
+
+      setTimeout(() => {
+        const el = cardRefs.current[idNum];
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350);
+    }, 0);
+
+    const timer = setTimeout(() => setHighlightedId(null), 3500);
+    return () => { clearTimeout(aplicar); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, producciones]);
 
   useEffect(() => {
     if (!formulario.id_receta) {
@@ -1198,7 +1234,12 @@ export default function ProduccionPage() {
             return (
               <div
                 key={p.id_orden_produccion}
-                className="bg-white rounded-lg border-2 border-gray-200 shadow-sm p-4 sm:p-6"
+                ref={(el) => { if (el) cardRefs.current[p.id_orden_produccion] = el; }}
+                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 transition-all ${
+                  highlightedId === p.id_orden_produccion
+                    ? "border-yellow-400 ring-4 ring-yellow-200 shadow-lg"
+                    : "border-gray-200"
+                }`}
               >
                 {/* Cabecera de la orden */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">

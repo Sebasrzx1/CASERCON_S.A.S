@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
@@ -18,7 +19,17 @@ import {
   ClipboardList,
   ArrowLeftRight,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
+  Trash2,
+  ExternalLink,
+  Calendar,
+  User,
+  Hash,
+  Tag,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Undo2,
 } from "lucide-react";
 import API_URL from "../service/api";
 
@@ -31,12 +42,16 @@ const overlayStyle = {
 
 export default function Movimientos() {
   const { isAdministrador, fetchConAuth } = useAuth();
+  const navigate = useNavigate();
 
   // ── Datos
   const [movimientos, setMovimientos] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [lotes, setLotes] = useState([]);
   const [cargando, setCargando] = useState(true);
+
+  // ── Tarjeta expandida
+  const [expandedId, setExpandedId] = useState(null);
 
   // ── Filtros listado principal
   const [busqueda, setBusqueda] = useState("");
@@ -749,96 +764,169 @@ export default function Movimientos() {
         </div>
       </div>
 
-      {/* Tabla — visible en md+ */}
-      <div className="hidden md:block bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      {/* ── Lista de movimientos — tarjetas expandibles (unificado desktop + móvil) ── */}
+      <div className="space-y-3">
         {cargando ? (
-          <div className="py-16 text-center text-gray-500">Cargando...</div>
+          <div className="bg-white rounded-lg border border-gray-200 px-6 py-16 text-center text-gray-500">
+            Cargando...
+          </div>
         ) : movimientosFiltrados.length === 0 ? (
-          <div className="py-16 text-center">
+          <div className="bg-white rounded-lg border border-gray-200 px-6 py-16 text-center">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">No hay movimientos registrados</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {["Fecha","Tipo","Materia Prima","Categoría","Lote","Cantidad","Usuario","Cód. Orden","Observación"].map((col) => (
-                    <th key={col} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {movimientosFiltrados.map((m) => (
-                  <tr key={m.id_movimiento} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {new Date(m.fecha).toLocaleDateString("es-CO")}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">{badgeTipo(m.tipo_movimiento)}</td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <p className="text-sm font-semibold text-gray-900">{m.nombre_materia}</p>
-                      <p className="text-xs text-blue-600">{m.codigo_materia}</p>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{m.categoria}</td>
-                    <td className="px-4 py-4 text-sm text-blue-600 font-mono whitespace-nowrap">{m.codigo_lote || "-"}</td>
-                    <td className="px-4 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{parseFloat(m.cantidad).toFixed(2)} kg</td>
-                    <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{m.usuario}</td>
-                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{m.codigo_orden || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-gray-500 max-w-xs truncate">{m.observacion || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          movimientosFiltrados.map((m) => {
+            const isExpanded = expandedId === m.id_movimiento;
+            const tipoConfig = {
+              Entrada:    { bg: "bg-green-100",  iconColor: "text-green-600", Icon: ArrowDownToLine },
+              Salida:     { bg: "bg-red-100",    iconColor: "text-red-600",   Icon: ArrowUpFromLine },
+              Devolucion: { bg: "bg-blue-100",   iconColor: "text-blue-600",  Icon: Undo2 },
+            }[m.tipo_movimiento] ?? { bg: "bg-gray-100", iconColor: "text-gray-500", Icon: Package };
 
-      {/* Tarjetas — visible en móvil (< md) */}
-      <div className="md:hidden space-y-3">
-        {cargando ? (
-          <div className="bg-white rounded-lg border border-gray-200 px-6 py-12 text-center text-gray-500">Cargando...</div>
-        ) : movimientosFiltrados.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 px-6 py-12 text-center">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No hay movimientos registrados</p>
-          </div>
-        ) : (
-          movimientosFiltrados.map((m) => (
-            <div key={m.id_movimiento} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{m.nombre_materia}</p>
-                  <p className="text-xs text-blue-600">{m.codigo_materia}</p>
+            // Determinar botón de acción según el tipo de movimiento
+            let actionButton = null;
+            if (m.tipo_movimiento === "Entrada" && m.id_pedido && m.tipo_pedido === "compra") {
+              actionButton = {
+                label: "Ver Recepción",
+                color: "bg-yellow-400 hover:bg-yellow-500 text-gray-900",
+                onClick: (e) => { e.stopPropagation(); navigate(`/pedidos?id=${m.id_pedido}`); },
+              };
+            } else if (m.tipo_movimiento === "Devolucion" && m.id_pedido) {
+              actionButton = {
+                label: "Ver Devolución",
+                color: "bg-blue-500 hover:bg-blue-600 text-white",
+                onClick: (e) => { e.stopPropagation(); navigate(`/pedidos?id=${m.id_pedido}`); },
+              };
+            } else if (m.tipo_movimiento === "Salida" && m.id_orden_produccion) {
+              actionButton = {
+                label: "Ver Producción",
+                color: "bg-green-500 hover:bg-green-600 text-white",
+                onClick: (e) => { e.stopPropagation(); navigate(`/produccion?id=${m.id_orden_produccion}`); },
+              };
+            }
+
+            return (
+              <div
+                key={m.id_movimiento}
+                onClick={() => setExpandedId(isExpanded ? null : m.id_movimiento)}
+                className={`bg-white rounded-lg border ${isExpanded ? "border-blue-300 ring-1 ring-blue-100" : "border-gray-200"} shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden`}
+              >
+                {/* ── Vista colapsada (siempre visible) ───────────────────────── */}
+                <div className="p-4 flex items-start gap-3 sm:gap-4">
+                  {/* Ícono del tipo */}
+                  <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg ${tipoConfig.bg} flex items-center justify-center flex-shrink-0`}>
+                    <tipoConfig.Icon className={`w-5 h-5 ${tipoConfig.iconColor}`} />
+                  </div>
+
+                  {/* Información principal */}
+                  <div className="flex-1 min-w-0">
+                    {/* Línea 1: Materia + Badge tipo */}
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                        {m.nombre_materia}
+                      </h3>
+                      {badgeTipo(m.tipo_movimiento)}
+                    </div>
+
+                    {/* Línea 2: Datos en grid responsive */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs sm:text-sm">
+                      <div>
+                        <p className="text-gray-500">Cantidad</p>
+                        <p className="font-semibold text-gray-900">{parseFloat(m.cantidad).toFixed(2)} KG</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-gray-500">Lote</p>
+                        <p className="font-mono text-blue-600 truncate">{m.codigo_lote || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Fecha</p>
+                        <p className="font-medium text-gray-900">{new Date(m.fecha).toLocaleDateString("es-CO")}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-gray-500">Registrado por</p>
+                        <p className="flex items-center gap-1 font-medium text-gray-900 truncate">
+                          <User className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                          <span className="truncate">{m.usuario || "—"}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones a la derecha */}
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    {actionButton && (
+                      <button
+                        onClick={actionButton.onClick}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${actionButton.color}`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{actionButton.label}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    )}
+                    {/* Chevron indicador de expansión */}
+                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                  </div>
                 </div>
-                {badgeTipo(m.tipo_movimiento)}
+
+                {/* ── Vista expandida (info adicional) ──────────────────────── */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                      <div className="flex items-start gap-2">
+                        <Hash className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Código materia</p>
+                          <p className="text-sm font-mono text-gray-900">{m.codigo_materia || "—"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Tag className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Categoría</p>
+                          <p className="text-sm text-gray-900">{m.categoria || "—"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Hora exacta</p>
+                          <p className="text-sm text-gray-900">
+                            {new Date(m.fecha).toLocaleString("es-CO", {
+                              hour: "2-digit", minute: "2-digit", second: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Código de orden si existe */}
+                    {(m.codigo_orden || m.codigo_orden_produccion) && (
+                      <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-3">
+                        <p className="text-xs text-gray-500 mb-0.5">
+                          {m.codigo_orden_produccion ? "Orden de Producción" : m.tipo_pedido === "devolucion" ? "Orden de Devolución" : "Orden de Recepción"}
+                        </p>
+                        <p className="text-sm font-mono font-semibold text-gray-900">
+                          {m.codigo_orden_produccion || m.codigo_orden}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Observaciones */}
+                    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2">
+                      <p className="text-xs text-gray-500 mb-0.5">Observaciones</p>
+                      <p className="text-sm text-gray-700">
+                        {m.observacion && m.observacion.trim() !== ""
+                          ? m.observacion
+                          : <span className="italic text-gray-400">Sin observaciones registradas</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="text-gray-500 mb-0.5">Cantidad</p>
-                  <p className="font-semibold text-gray-900">{parseFloat(m.cantidad).toFixed(2)} kg</p>
-                </div>
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="text-gray-500 mb-0.5">Fecha</p>
-                  <p className="font-semibold text-gray-900">{new Date(m.fecha).toLocaleDateString("es-CO")}</p>
-                </div>
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="text-gray-500 mb-0.5">Lote</p>
-                  <p className="font-semibold text-blue-600 font-mono">{m.codigo_lote || "-"}</p>
-                </div>
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="text-gray-500 mb-0.5">Usuario</p>
-                  <p className="font-semibold text-gray-900 truncate">{m.usuario}</p>
-                </div>
-              </div>
-              {m.observacion && (
-                <p className="text-xs text-gray-500 pt-2 border-t border-gray-100 truncate">
-                  <span className="font-medium">Obs:</span> {m.observacion}
-                </p>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

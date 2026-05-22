@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
@@ -22,6 +23,10 @@ const ModalOverlay = ({ children, onClose }) => (
 export default function PedidosPage() {
   const STOCK_MAX = 99999.99;
   const { isAdministrador, user, fetchConAuth } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("id");
+  const [highlightedId, setHighlightedId] = useState(null);
+  const cardRefs = useRef({});
 
   const [pedidos, setPedidos]         = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -78,6 +83,47 @@ export default function PedidosPage() {
     fetchCatalogos();
     return () => window.removeEventListener("focus", fetchPedidos);
   }, []);
+
+  // ── Manejar navegación con ?id=X desde Movimientos ───────────────
+  useEffect(() => {
+    if (!highlightId || pedidos.length === 0) return;
+    const idNum = parseInt(highlightId);
+    const target = pedidos.find((p) => p.id_pedido === idNum);
+
+    // Diferir las actualizaciones de estado fuera del cuerpo síncrono del effect
+    const aplicar = setTimeout(() => {
+      if (!target) {
+        toast.error("No se encontró la orden referenciada");
+        setSearchParams({});
+        return;
+      }
+
+      // Auto-seleccionar el filtro según el tipo y estado del pedido
+      if (target.tipo_pedido === "devolucion") {
+        setFiltroEstado("devolucion");
+      } else {
+        setFiltroEstado(target.estado);
+      }
+
+      // Limpiar filtros de fecha y búsqueda para asegurar que se vea
+      setFechaInicio("");
+      setFechaFin("");
+      setBusqueda("");
+      setHighlightedId(idNum);
+      setSearchParams({});
+
+      // Scroll al pedido después de que se renderice
+      setTimeout(() => {
+        const el = cardRefs.current[idNum];
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350);
+    }, 0);
+
+    // Quitar el resaltado después de unos segundos
+    const timer = setTimeout(() => setHighlightedId(null), 3500);
+    return () => { clearTimeout(aplicar); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, pedidos]);
 
   // ── Estadísticas ─────────────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -591,10 +637,18 @@ export default function PedidosPage() {
         ) : (
           pedidosFiltrados.map((pedido) => {
             const esDevolucion = pedido.tipo_pedido === "devolucion";
+            const isHighlighted = highlightedId === pedido.id_pedido;
             return (
               <div
                 key={pedido.id_pedido}
-                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 ${esDevolucion ? "border-purple-200 bg-purple-50" : "border-gray-200"}`}
+                ref={(el) => { if (el) cardRefs.current[pedido.id_pedido] = el; }}
+                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 transition-all ${
+                  isHighlighted
+                    ? "border-yellow-400 ring-4 ring-yellow-200 shadow-lg"
+                    : esDevolucion
+                      ? "border-purple-200 bg-purple-50"
+                      : "border-gray-200"
+                }`}
               >
                 {/* Cabecera */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
