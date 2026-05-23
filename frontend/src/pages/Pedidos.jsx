@@ -445,7 +445,7 @@ export default function PedidosPage() {
     }
   };
 
-  // ── Cancelar ─────────────────────────────────────────────────────
+  // ── Eliminar ─────────────────────────────────────────────────────
   const confirmarCancelar = async () => {
     if (!pedidoActivo) return;
     try {
@@ -453,7 +453,7 @@ export default function PedidosPage() {
       if (!res) return;
       const data = await res.json();
       if (data.status === "error") { toast.error("Error", { description: data.message }); return; }
-      toast.success("Pedido cancelado", { description: "La orden fue cancelada y eliminada exitosamente" });
+      toast.success("Pedido eliminado", { description: "La orden fue eliminada exitosamente" });
       setModalCancelar(false);
       setPedidoActivo(null);
       fetchPedidos();
@@ -778,7 +778,7 @@ export default function PedidosPage() {
                           onClick={() => { setPedidoActivo(pedido); setModalCancelar(true); }}
                           className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm font-medium"
                         >
-                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Cancelar
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Eliminar
                         </button>
                       </>
                     )}
@@ -1199,7 +1199,7 @@ export default function PedidosPage() {
         </ModalOverlay>
       )}
 
-      {/* ── Modal Cancelar ── */}
+      {/* ── Modal Eliminar ── */}
       {modalCancelar && pedidoActivo && (
         <ModalOverlay onClose={() => { setModalCancelar(false); setPedidoActivo(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-5 sm:p-6">
@@ -1207,10 +1207,10 @@ export default function PedidosPage() {
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
-              <h2 className="font-bold text-gray-900 text-base sm:text-lg">Cancelar Pedido</h2>
+              <h2 className="font-bold text-gray-900 text-base sm:text-lg">Eliminar Pedido</h2>
             </div>
             <p className="text-gray-600 text-sm sm:text-base mb-6">
-              ¿Estás seguro de cancelar permanentemente{" "}
+              ¿Confirma que desea eliminar permanentemente{" "}
               <span className="font-medium text-gray-900">{pedidoActivo.no_orden_compra}</span>?
               Esta acción no se puede deshacer.
             </p>
@@ -1219,13 +1219,13 @@ export default function PedidosPage() {
                 onClick={() => { setModalCancelar(false); setPedidoActivo(null); }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
-                Volver
+                Cancelar
               </button>
               <button
                 onClick={confirmarCancelar}
                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm transition-colors"
               >
-                Cancelar Pedido
+                Eliminar
               </button>
             </div>
           </div>

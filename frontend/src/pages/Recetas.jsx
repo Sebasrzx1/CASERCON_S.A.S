@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
+  Search,
 } from "lucide-react";
 import API_URL from "../service/api";
 
@@ -402,13 +403,16 @@ export default function Recetas() {
             </span>
           </button>
         </div>
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar receta..."
-          className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-        />
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar receta..."
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
       </div>
 
       {/* Ancla para scroll al cambiar de página */}
