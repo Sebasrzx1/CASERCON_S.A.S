@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Package, Plus, X, CheckCircle, Clock, XCircle,
   Truck, Trash2, Edit, AlertTriangle, Search, Calendar,
-  Printer, RotateCcw,
+  Printer, RotateCcw, ChevronDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import API_URL from "../service/api";
 
@@ -19,6 +19,45 @@ const ModalOverlay = ({ children, onClose }) => (
     {children}
   </div>
 );
+
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
 
 export default function PedidosPage() {
   const STOCK_MAX = 99999.99;
@@ -166,6 +205,32 @@ export default function PedidosPage() {
 
     return res.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
   }, [pedidos, filtroEstado, fechaInicio, fechaFin, busqueda]);
+
+  // ── Paginación numérica (aplica a todas las pestañas) ────────────
+  const PEDIDOS_POR_PAGINA = 15;
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtroEstado, fechaInicio, fechaFin, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(pedidosFiltrados.length / PEDIDOS_POR_PAGINA));
+  const pedidosVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * PEDIDOS_POR_PAGINA;
+    return pedidosFiltrados.slice(inicio, inicio + PEDIDOS_POR_PAGINA);
+  }, [pedidosFiltrados, paginaActual]);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
 
   const cambiarFiltro = (valor) => {
     setFiltroEstado(valor);
@@ -623,6 +688,9 @@ export default function PedidosPage() {
         )}
       </div>
 
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
+
       {/* ── Lista ── */}
       <div className="space-y-3 sm:space-y-4">
         {loading ? (
@@ -635,7 +703,7 @@ export default function PedidosPage() {
             <p className="text-gray-500">No hay pedidos en este estado</p>
           </div>
         ) : (
-          pedidosFiltrados.map((pedido) => {
+          pedidosVisibles.map((pedido) => {
             const esDevolucion = pedido.tipo_pedido === "devolucion";
             const isHighlighted = highlightedId === pedido.id_pedido;
             return (
@@ -803,6 +871,14 @@ export default function PedidosPage() {
               </div>
             );
           })
+        )}
+        {/* Paginación numérica */}
+        {!loading && (
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
         )}
       </div>
 

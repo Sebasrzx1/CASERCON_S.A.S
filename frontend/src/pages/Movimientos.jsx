@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import {
   ArrowLeftRight,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
   ArrowLeft,
   Trash2,
   ExternalLink,
@@ -39,6 +40,45 @@ const overlayStyle = {
   WebkitBackdropFilter: "blur(6px)",
   backgroundColor: "rgba(15, 23, 42, 0.55)",
 };
+
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
 
 export default function Movimientos() {
   const { isAdministrador, fetchConAuth } = useAuth();
@@ -168,6 +208,32 @@ export default function Movimientos() {
       return coincideBusqueda && coincideTipo && coincideFechaInicio && coincideFechaFin;
     });
   }, [movimientos, busqueda, filtroTipo, fechaInicio, fechaFin]);
+
+  // ── Paginación numérica — aplica a tabs, búsqueda y fechas ───────
+  const MOVIMIENTOS_POR_PAGINA = 25;
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda, filtroTipo, fechaInicio, fechaFin]);
+
+  const totalPaginas = Math.max(1, Math.ceil(movimientosFiltrados.length / MOVIMIENTOS_POR_PAGINA));
+  const movimientosVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * MOVIMIENTOS_POR_PAGINA;
+    return movimientosFiltrados.slice(inicio, inicio + MOVIMIENTOS_POR_PAGINA);
+  }, [movimientosFiltrados, paginaActual]);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
 
   // ── Modal registrar
   const abrirModal = () => {
@@ -764,6 +830,9 @@ export default function Movimientos() {
         </div>
       </div>
 
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
+
       {/* ── Lista de movimientos — tarjetas expandibles (unificado desktop + móvil) ── */}
       <div className="space-y-3">
         {cargando ? (
@@ -776,7 +845,7 @@ export default function Movimientos() {
             <p className="text-gray-500">No hay movimientos registrados</p>
           </div>
         ) : (
-          movimientosFiltrados.map((m) => {
+          movimientosVisibles.map((m) => {
             const isExpanded = expandedId === m.id_movimiento;
             const tipoConfig = {
               Entrada:    { bg: "bg-green-100",  iconColor: "text-green-600", Icon: ArrowDownToLine },
@@ -927,6 +996,14 @@ export default function Movimientos() {
               </div>
             );
           })
+        )}
+        {/* Paginación numérica */}
+        {!cargando && (
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
         )}
       </div>
 
