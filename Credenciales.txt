@@ -1,0 +1,6 @@
+Admin:
+admin@casercon.com
+admin123
+Operario:
+operario@casercon.com
+admin123

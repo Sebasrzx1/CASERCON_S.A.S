@@ -73,11 +73,11 @@ export function Login() {
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-24 h-24 bg-white rounded-2xl mx-auto mb-4 p-3 shadow-2xl">
+          <div className="w-34 h-34 mx-auto mb-4 p-3 shadow-2xl">
             <img src={logoCarsecon} alt="Logo" />
           </div>
-          <h1 className="text-white text-3xl font-bold">Carsecon S.A.S</h1>
-          <p className="text-yellow-400">Sistema de Inventario</p>
+          <h1 className="text-white text-3xl font-bold">SIGIC</h1>
+          <p className="text-yellow-400">Sistema integrado de gestion de inventario Casercon</p>
         </div>
 
         {/* Formulario */}
