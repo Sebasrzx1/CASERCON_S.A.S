@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
   Package, Plus, X, CheckCircle, Clock, XCircle,
   Truck, Trash2, Edit, AlertTriangle, Search, Calendar,
-  Printer, RotateCcw,
+  Printer, RotateCcw, ChevronDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import API_URL from "../service/api";
 
@@ -19,9 +20,52 @@ const ModalOverlay = ({ children, onClose }) => (
   </div>
 );
 
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function PedidosPage() {
   const STOCK_MAX = 99999.99;
   const { isAdministrador, user, fetchConAuth } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("id");
+  const [highlightedId, setHighlightedId] = useState(null);
+  const cardRefs = useRef({});
 
   const [pedidos, setPedidos]         = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -79,6 +123,47 @@ export default function PedidosPage() {
     return () => window.removeEventListener("focus", fetchPedidos);
   }, []);
 
+  // ── Manejar navegación con ?id=X desde Movimientos ───────────────
+  useEffect(() => {
+    if (!highlightId || pedidos.length === 0) return;
+    const idNum = parseInt(highlightId);
+    const target = pedidos.find((p) => p.id_pedido === idNum);
+
+    // Diferir las actualizaciones de estado fuera del cuerpo síncrono del effect
+    const aplicar = setTimeout(() => {
+      if (!target) {
+        toast.error("No se encontró la orden referenciada");
+        setSearchParams({});
+        return;
+      }
+
+      // Auto-seleccionar el filtro según el tipo y estado del pedido
+      if (target.tipo_pedido === "devolucion") {
+        setFiltroEstado("devolucion");
+      } else {
+        setFiltroEstado(target.estado);
+      }
+
+      // Limpiar filtros de fecha y búsqueda para asegurar que se vea
+      setFechaInicio("");
+      setFechaFin("");
+      setBusqueda("");
+      setHighlightedId(idNum);
+      setSearchParams({});
+
+      // Scroll al pedido después de que se renderice
+      setTimeout(() => {
+        const el = cardRefs.current[idNum];
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350);
+    }, 0);
+
+    // Quitar el resaltado después de unos segundos
+    const timer = setTimeout(() => setHighlightedId(null), 3500);
+    return () => { clearTimeout(aplicar); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, pedidos]);
+
   // ── Estadísticas ─────────────────────────────────────────────────
   const stats = useMemo(() => ({
     total:         pedidos.filter((p) => p.tipo_pedido === "compra").length,
@@ -120,6 +205,32 @@ export default function PedidosPage() {
 
     return res.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
   }, [pedidos, filtroEstado, fechaInicio, fechaFin, busqueda]);
+
+  // ── Paginación numérica (aplica a todas las pestañas) ────────────
+  const PEDIDOS_POR_PAGINA = 15;
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtroEstado, fechaInicio, fechaFin, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(pedidosFiltrados.length / PEDIDOS_POR_PAGINA));
+  const pedidosVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * PEDIDOS_POR_PAGINA;
+    return pedidosFiltrados.slice(inicio, inicio + PEDIDOS_POR_PAGINA);
+  }, [pedidosFiltrados, paginaActual]);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
 
   const cambiarFiltro = (valor) => {
     setFiltroEstado(valor);
@@ -334,7 +445,7 @@ export default function PedidosPage() {
     }
   };
 
-  // ── Cancelar ─────────────────────────────────────────────────────
+  // ── Eliminar ─────────────────────────────────────────────────────
   const confirmarCancelar = async () => {
     if (!pedidoActivo) return;
     try {
@@ -342,7 +453,7 @@ export default function PedidosPage() {
       if (!res) return;
       const data = await res.json();
       if (data.status === "error") { toast.error("Error", { description: data.message }); return; }
-      toast.success("Pedido cancelado", { description: "La orden fue cancelada y eliminada exitosamente" });
+      toast.success("Pedido eliminado", { description: "La orden fue eliminada exitosamente" });
       setModalCancelar(false);
       setPedidoActivo(null);
       fetchPedidos();
@@ -577,6 +688,9 @@ export default function PedidosPage() {
         )}
       </div>
 
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
+
       {/* ── Lista ── */}
       <div className="space-y-3 sm:space-y-4">
         {loading ? (
@@ -589,12 +703,20 @@ export default function PedidosPage() {
             <p className="text-gray-500">No hay pedidos en este estado</p>
           </div>
         ) : (
-          pedidosFiltrados.map((pedido) => {
+          pedidosVisibles.map((pedido) => {
             const esDevolucion = pedido.tipo_pedido === "devolucion";
+            const isHighlighted = highlightedId === pedido.id_pedido;
             return (
               <div
                 key={pedido.id_pedido}
-                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 ${esDevolucion ? "border-purple-200 bg-purple-50" : "border-gray-200"}`}
+                ref={(el) => { if (el) cardRefs.current[pedido.id_pedido] = el; }}
+                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 transition-all ${
+                  isHighlighted
+                    ? "border-yellow-400 ring-4 ring-yellow-200 shadow-lg"
+                    : esDevolucion
+                      ? "border-purple-200 bg-purple-50"
+                      : "border-gray-200"
+                }`}
               >
                 {/* Cabecera */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
@@ -656,7 +778,7 @@ export default function PedidosPage() {
                           onClick={() => { setPedidoActivo(pedido); setModalCancelar(true); }}
                           className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm font-medium"
                         >
-                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Cancelar
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Eliminar
                         </button>
                       </>
                     )}
@@ -749,6 +871,14 @@ export default function PedidosPage() {
               </div>
             );
           })
+        )}
+        {/* Paginación numérica */}
+        {!loading && (
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
         )}
       </div>
 
@@ -1069,7 +1199,7 @@ export default function PedidosPage() {
         </ModalOverlay>
       )}
 
-      {/* ── Modal Cancelar ── */}
+      {/* ── Modal Eliminar ── */}
       {modalCancelar && pedidoActivo && (
         <ModalOverlay onClose={() => { setModalCancelar(false); setPedidoActivo(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-5 sm:p-6">
@@ -1077,10 +1207,10 @@ export default function PedidosPage() {
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
-              <h2 className="font-bold text-gray-900 text-base sm:text-lg">Cancelar Pedido</h2>
+              <h2 className="font-bold text-gray-900 text-base sm:text-lg">Eliminar Pedido</h2>
             </div>
             <p className="text-gray-600 text-sm sm:text-base mb-6">
-              ¿Estás seguro de cancelar permanentemente{" "}
+              ¿Confirma que desea eliminar permanentemente{" "}
               <span className="font-medium text-gray-900">{pedidoActivo.no_orden_compra}</span>?
               Esta acción no se puede deshacer.
             </p>
@@ -1089,13 +1219,13 @@ export default function PedidosPage() {
                 onClick={() => { setModalCancelar(false); setPedidoActivo(null); }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
-                Volver
+                Cancelar
               </button>
               <button
                 onClick={confirmarCancelar}
                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm transition-colors"
               >
-                Cancelar Pedido
+                Eliminar
               </button>
             </div>
           </div>

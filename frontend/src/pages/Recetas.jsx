@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import React from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -11,9 +11,51 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Package,
+  Search,
 } from "lucide-react";
 import API_URL from "../service/api";
+
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
 
 
 export default function Recetas() {
@@ -34,6 +76,18 @@ export default function Recetas() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmData, setConfirmData] = useState(null);
   const [expandidas, setExpandidas] = useState(new Set());
+
+  // Paginación numérica
+  const RECETAS_POR_PAGINA = 15;
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
 
   const getToken = () => localStorage.getItem("token");
 
@@ -96,6 +150,21 @@ export default function Recetas() {
       );
     });
   }, [recetas, busqueda, filtroEstado]);
+
+  // Reiniciar a página 1 al cambiar filtros
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda, filtroEstado]);
+
+  const totalPaginas = Math.max(1, Math.ceil(recetasFiltradas.length / RECETAS_POR_PAGINA));
+  const recetasVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * RECETAS_POR_PAGINA;
+    return recetasFiltradas.slice(inicio, inicio + RECETAS_POR_PAGINA);
+  }, [recetasFiltradas, paginaActual]);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
 
   const sumaPorcentajes = useMemo(() => {
     return ingredientes.reduce(
@@ -334,14 +403,20 @@ export default function Recetas() {
             </span>
           </button>
         </div>
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar receta..."
-          className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-        />
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar receta..."
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
       </div>
+
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
 
       {/* Cards */}
       {cargando ? (
@@ -353,7 +428,7 @@ export default function Recetas() {
         </div>
       ) : (
         <div className="space-y-3 sm:space-y-4">
-          {recetasFiltradas.map((r) => (
+          {recetasVisibles.map((r) => (
             <div
               key={r.id_receta}
               className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
@@ -473,10 +548,14 @@ export default function Recetas() {
               )}
             </div>
           ))}
+          {/* Paginación numérica */}
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
         </div>
       )}
-
-      {/* ── Modal Crear / Editar ── */}
       {modalAbierto && (
         <div
           className="fixed inset-0 flex items-center justify-center p-4 z-50"

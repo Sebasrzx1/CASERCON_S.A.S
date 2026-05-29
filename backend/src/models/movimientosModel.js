@@ -15,13 +15,18 @@ const movimientosModel = {
         l.codigo_lote,
         l.stock_restante AS stock_lote,
         u.nombre         AS usuario,
-        p.no_orden_compra AS codigo_orden
+        p.id_pedido,
+        p.no_orden_compra AS codigo_orden,
+        p.tipo_pedido,
+        op.id_orden_produccion,
+        op.codigo_orden  AS codigo_orden_produccion
       FROM movimientos_inventario mi
       INNER JOIN materias_primas mp ON mi.id_materia = mp.id_materia
       INNER JOIN categoria_materias cm ON mp.id_categoria_materia = cm.id_categoria_materia
       LEFT  JOIN lotes l             ON mi.id_lote = l.id_lote
       LEFT  JOIN usuarios u          ON mi.id_usuario = u.id_usuario
       LEFT  JOIN pedidos p           ON mi.id_pedido = p.id_pedido
+      LEFT  JOIN ordenes_produccion op ON mi.id_orden_produccion = op.id_orden_produccion
       ORDER BY mi.fecha DESC;
     `;
     const [rows] = await db.execute(query);

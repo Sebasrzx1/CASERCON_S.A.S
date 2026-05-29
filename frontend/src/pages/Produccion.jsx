@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, use } from "react";
+import React, { useEffect, useState, useMemo, useRef, use } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Factory,
   Plus,
@@ -16,6 +17,9 @@ import {
   Search,
   Calendar,
   Ban,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -37,9 +41,52 @@ const ModalOverlay = ({ children, onClose }) => (
   </div>
 );
 
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function ProduccionPage() {
   const { isAdministrador, user } = useAuth();
   const { fetchConAuth } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("id");
+  const [highlightedId, setHighlightedId] = useState(null);
+  const cardRefs = useRef({});
 
   const [producciones, setProducciones] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -149,6 +196,37 @@ export default function ProduccionPage() {
     fetchMateriasPrimas();
     if (isAdministrador) fetchOperarios();
   }, []);
+
+  // ── Manejar navegación con ?id=X desde Movimientos ───────────────
+  useEffect(() => {
+    if (!highlightId || producciones.length === 0) return;
+    const idNum = parseInt(highlightId);
+    const target = producciones.find((p) => p.id_orden_produccion === idNum);
+
+    const aplicar = setTimeout(() => {
+      if (!target) {
+        toast.error("No se encontró la orden de producción referenciada");
+        setSearchParams({});
+        return;
+      }
+
+      setFiltroEstado(target.estado);
+      setFechaInicio("");
+      setFechaFin("");
+      setBusqueda("");
+      setHighlightedId(idNum);
+      setSearchParams({});
+
+      setTimeout(() => {
+        const el = cardRefs.current[idNum];
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350);
+    }, 0);
+
+    const timer = setTimeout(() => setHighlightedId(null), 3500);
+    return () => { clearTimeout(aplicar); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, producciones]);
 
   useEffect(() => {
     if (!formulario.id_receta) {
@@ -845,6 +923,32 @@ export default function ProduccionPage() {
     user,
   ]);
 
+  // ── Paginación numérica (aplica a todas las pestañas) ────────────
+  const PRODUCCION_POR_PAGINA = 15;
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtroEstado, fechaInicio, fechaFin, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(produccionesFiltradas.length / PRODUCCION_POR_PAGINA));
+  const produccionesVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * PRODUCCION_POR_PAGINA;
+    return produccionesFiltradas.slice(inicio, inicio + PRODUCCION_POR_PAGINA);
+  }, [produccionesFiltradas, paginaActual]);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
+
   const calcularMateriales = (ingredientes, cantidad) => {
     if (!ingredientes || !cantidad || isNaN(Number(cantidad))) return [];
     return ingredientes.map((ing) => ({
@@ -1141,6 +1245,9 @@ export default function ProduccionPage() {
         )}
       </div>
 
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
+
       {/* ── Lista de órdenes ── */}
       <div className="space-y-3 sm:space-y-4">
         {loading ? (
@@ -1153,7 +1260,7 @@ export default function ProduccionPage() {
             <p className="text-gray-500">No hay órdenes en este estado</p>
           </div>
         ) : (
-          produccionesFiltradas.map((p) => {
+          produccionesVisibles.map((p) => {
             const esPendiente = p.estado === "Pendiente";
             const esProceso = p.estado === "En proceso";
 
@@ -1198,7 +1305,12 @@ export default function ProduccionPage() {
             return (
               <div
                 key={p.id_orden_produccion}
-                className="bg-white rounded-lg border-2 border-gray-200 shadow-sm p-4 sm:p-6"
+                ref={(el) => { if (el) cardRefs.current[p.id_orden_produccion] = el; }}
+                className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 transition-all ${
+                  highlightedId === p.id_orden_produccion
+                    ? "border-yellow-400 ring-4 ring-yellow-200 shadow-lg"
+                    : "border-gray-200"
+                }`}
               >
                 {/* Cabecera de la orden */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
@@ -1609,6 +1721,14 @@ export default function ProduccionPage() {
               </div>
             );
           })
+        )}
+        {/* Paginación numérica */}
+        {!loading && (
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
         )}
       </div>
 

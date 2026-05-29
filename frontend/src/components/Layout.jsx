@@ -175,11 +175,11 @@ export function Layout() {
               {/* Texto empresa */}
               <div className="min-w-0 overflow-hidden">
                 <h1 className="font-bold text-white text-xs sm:text-sm truncate">
-                  Casercon S.A.S
+                  SIGIC
                 </h1>
 
                 <p className="text-[10px] text-yellow-400 hidden sm:block truncate">
-                  Sistema de Gestión de Inventario
+                  Sistema integrado de gestion de inventario
                 </p>
               </div>
             </div>

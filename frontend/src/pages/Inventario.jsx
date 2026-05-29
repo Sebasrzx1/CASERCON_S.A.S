@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import {
   Package, Plus, Edit, Search, AlertTriangle, CheckCircle,
   XCircle, X, FileText, Calendar, ShoppingCart,
-  ChevronDown, ChevronUp, Check, Ban,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Check, Ban,
 } from "lucide-react";
 import { z } from "zod";
 import API_URL from "../service/api";
@@ -14,6 +14,62 @@ const LIMITES = {
   abreviacion: 3,
   codigo_max:  11,
   stock_max:   9999999999.99,
+};
+
+// Cantidad de materias por página
+const INVENTARIO_POR_PAGINA = 30;
+
+// Divide un nombre en 2 líneas de máximo 16 caracteres cada una,
+// llenando cada línea con tantas palabras completas como quepan.
+// Si el texto excede 2 líneas, recorta y agrega "..." (el nombre
+// completo se muestra en un tooltip via atributo title).
+const dividirNombreDosLineas = (nombre) => {
+  const MAX_LINEA = 16;
+  const texto = String(nombre || "").trim();
+  if (texto.length <= MAX_LINEA) {
+    return { linea1: texto, linea2: "", truncado: false };
+  }
+
+  const palabras = texto.split(/\s+/);
+  let linea1 = "";
+  let i = 0;
+
+  // Llenar línea 1 con tantas palabras completas como quepan en 16
+  while (i < palabras.length) {
+    const tentativa = linea1 ? `${linea1} ${palabras[i]}` : palabras[i];
+    if (tentativa.length <= MAX_LINEA) {
+      linea1 = tentativa;
+      i++;
+    } else {
+      break;
+    }
+  }
+
+  // Si ni la primera palabra cabe, cortar duro
+  if (!linea1) {
+    const corte2 = texto.slice(MAX_LINEA, MAX_LINEA * 2 - 3);
+    return {
+      linea1: texto.slice(0, MAX_LINEA),
+      linea2: texto.length > MAX_LINEA * 2 ? corte2 + "..." : texto.slice(MAX_LINEA, MAX_LINEA * 2),
+      truncado: texto.length > MAX_LINEA * 2,
+    };
+  }
+
+  // Resto de palabras para la línea 2
+  const resto = palabras.slice(i).join(" ");
+  if (resto === "") {
+    return { linea1, linea2: "", truncado: false };
+  }
+  if (resto.length <= MAX_LINEA) {
+    return { linea1, linea2: resto, truncado: false };
+  }
+
+  // El resto no cabe en una línea: recortar con puntos suspensivos
+  return {
+    linea1,
+    linea2: resto.slice(0, MAX_LINEA - 3) + "...",
+    truncado: true,
+  };
 };
 
 const calcularEstado = (stockActual, stockMinimo) => {
@@ -53,6 +109,45 @@ const FORM_VACIO = {
   id_categoria_materia: "", stock_min: "", stock_inicial: "",
 };
 
+// ── Componente de paginación numérica reutilizable ──────────────────
+function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
+  if (totalPaginas <= 1) return null;
+  const paginas = Array.from({ length: totalPaginas }, (_, i) => i + 1);
+  return (
+    <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
+      <button
+        onClick={() => onCambiar(paginaActual - 1)}
+        disabled={paginaActual === 1}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {paginas.map((n) => (
+        <button
+          key={n}
+          onClick={() => onCambiar(n)}
+          className={`min-w-[2.25rem] px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            n === paginaActual
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        onClick={() => onCambiar(paginaActual + 1)}
+        disabled={paginaActual === totalPaginas}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center"
+        aria-label="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function Inventario() {
   const { isAdministrador, user } = useAuth();
 
@@ -65,6 +160,18 @@ export default function Inventario() {
   const [filtroEstado, setFiltroEstado] = useState("Activo");
   const [catsFiltro,   setCatsFiltro]   = useState(new Set());
   const [mostrarCats,  setMostrarCats]  = useState(false);
+
+  // Paginación numérica
+  const [paginaActual, setPaginaActual] = useState(1);
+  const listaRef = useRef(null);
+
+  // Cambia de página y sube la vista al inicio de la lista
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
 
   const [modalAbierto,     setModalAbierto]     = useState(false);
   const [editando,         setEditando]         = useState(null);
@@ -172,6 +279,23 @@ export default function Inventario() {
       return coincideNombre && coincideStock && coincideEstado && coincideCat;
     }),
   [materias, busqueda, filtroStock, filtroEstado, catsFiltro]);
+
+  // Reiniciar a la página 1 cuando cambia cualquier filtro
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda, filtroStock, filtroEstado, catsFiltro]);
+
+  // Cálculo de paginación
+  const totalPaginas = Math.max(1, Math.ceil(materiasFiltradas.length / INVENTARIO_POR_PAGINA));
+  const materiasVisibles = useMemo(() => {
+    const inicio = (paginaActual - 1) * INVENTARIO_POR_PAGINA;
+    return materiasFiltradas.slice(inicio, inicio + INVENTARIO_POR_PAGINA);
+  }, [materiasFiltradas, paginaActual]);
+
+  // Si la página actual queda fuera de rango tras filtrar, corregir
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas);
+  }, [totalPaginas, paginaActual]);
 
   const estadisticas = useMemo(() => {
     const activas = materias.filter((m) => m.estado === "Activo");
@@ -485,6 +609,9 @@ export default function Inventario() {
         )}
       </div>
 
+      {/* Ancla para scroll al cambiar de página */}
+      <div ref={listaRef} className="scroll-mt-4" />
+
       {/* Tabla — visible en md y más grande */}
       <div className="hidden md:block bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -512,18 +639,26 @@ export default function Inventario() {
                   </td>
                 </tr>
               ) : (
-                materiasFiltradas.map((m) => (
+                materiasVisibles.map((m) => {
+                  const { linea1, linea2, truncado } = dividirNombreDosLineas(m.nombre);
+                  return (
                   <tr key={m.id_materia} className="hover:bg-gray-50">
                     <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                       <p className="font-bold text-blue-600 text-sm">{m.codigo || "N/A"}</p>
                     </td>
-                    <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 lg:px-6 py-4">
                       <div className="flex items-center gap-2 lg:gap-3">
                         <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Package className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{m.nombre}</p>
+                          <p
+                            className="font-medium text-gray-900 text-sm leading-tight"
+                            title={truncado ? m.nombre : undefined}
+                          >
+                            {linea1}
+                            {linea2 && <><br />{linea2}</>}
+                          </p>
                           <button
                             onClick={() => verLotes(m)}
                             className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
@@ -579,11 +714,22 @@ export default function Inventario() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+        {/* Paginación — escritorio */}
+        {!cargando && (
+          <div className="px-6 py-4 border-t border-gray-200">
+            <Paginacion
+              paginaActual={paginaActual}
+              totalPaginas={totalPaginas}
+              onCambiar={cambiarPagina}
+            />
+          </div>
+        )}
       </div>
 
       {/* Tarjetas — visible solo en móvil (< md) */}
@@ -598,7 +744,7 @@ export default function Inventario() {
             <p className="text-gray-500">No se encontraron materias primas</p>
           </div>
         ) : (
-          materiasFiltradas.map((m) => (
+          materiasVisibles.map((m) => (
             <div key={m.id_materia} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -670,15 +816,21 @@ export default function Inventario() {
             </div>
           ))
         )}
+        {/* Paginación — móvil */}
+        {!cargando && (
+          <Paginacion
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            onCambiar={cambiarPagina}
+          />
+        )}
       </div>
-
-      {/* ── Modal Crear / Editar ───────────────────────────────────────────── */}
       {modalAbierto && (
         <div
           className="fixed inset-0 flex items-center justify-center p-4 z-50"
           style={overlayStyle}
         >
-          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-md max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
               <h2 className="font-bold text-gray-900 text-lg sm:text-xl">
                 {editando ? "Editar Materia Prima" : "Nueva Materia Prima"}
@@ -688,10 +840,10 @@ export default function Inventario() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto flex-1">
 
-              {/* Nombre */}
-              <div>
+              {/* Nombre — ancho completo */}
+              <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700">Nombre *</label>
                   <CharCount value={formulario.nombre} max={LIMITES.nombre} />
@@ -714,144 +866,148 @@ export default function Inventario() {
                 )}
               </div>
 
-              {/* Código */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Código *</label>
-                  <CharCount value={formulario.codigo} max={LIMITES.codigo_max} />
-                </div>
-                <input
-                  type="text"
-                  required
-                  maxLength={LIMITES.codigo_max}
-                  value={formulario.codigo}
-                  onChange={(e) => setField("codigo", e.target.value.replace(/\D/g, ""))}
-                  placeholder="Ej: 61902511179"
-                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                    errores.codigo ? "border-red-500 focus:ring-red-500" : "border-gray-300"
-                  }`}
-                />
-                {errores.codigo && (
-                  <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.codigo}
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">Código numérico único — máximo {LIMITES.codigo_max} dígitos</p>
-              </div>
+              {/* Grid de 2 columnas para el resto de campos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-              {/* Abreviación */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Abreviación * (máx. {LIMITES.abreviacion} car.)
-                  </label>
-                  <CharCount value={formulario.abreviacion} max={LIMITES.abreviacion} />
-                </div>
-                <input
-                  type="text"
-                  required
-                  maxLength={LIMITES.abreviacion}
-                  value={formulario.abreviacion}
-                  onChange={(e) => setField("abreviacion", e.target.value.toUpperCase())}
-                  placeholder="Ej: DT"
-                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                    errores.abreviacion ? "border-red-500 focus:ring-red-500" : "border-gray-300"
-                  }`}
-                />
-                {errores.abreviacion && (
-                  <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.abreviacion}
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">Se usa para generar códigos de lote</p>
-              </div>
-
-              {/* Stock Inicial */}
-              {(!editando || !loteInicialUsado) && (
+                {/* Código */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Inicial (kg) *</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">Código *</label>
+                    <CharCount value={formulario.codigo} max={LIMITES.codigo_max} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    maxLength={LIMITES.codigo_max}
+                    value={formulario.codigo}
+                    onChange={(e) => setField("codigo", e.target.value.replace(/\D/g, ""))}
+                    placeholder="Ej: 61902511179"
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                      errores.codigo ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                    }`}
+                  />
+                  {errores.codigo && (
+                    <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.codigo}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Numérico único — máx. {LIMITES.codigo_max} dígitos</p>
+                </div>
+
+                {/* Abreviación */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Abreviación * (máx. {LIMITES.abreviacion})
+                    </label>
+                    <CharCount value={formulario.abreviacion} max={LIMITES.abreviacion} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    maxLength={LIMITES.abreviacion}
+                    value={formulario.abreviacion}
+                    onChange={(e) => setField("abreviacion", e.target.value.toUpperCase())}
+                    placeholder="Ej: DT"
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                      errores.abreviacion ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                    }`}
+                  />
+                  {errores.abreviacion && (
+                    <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.abreviacion}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Para generar códigos de lote</p>
+                </div>
+
+                {/* Stock Inicial */}
+                {(!editando || !loteInicialUsado) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Stock Inicial (kg) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={LIMITES.stock_max}
+                      required
+                      value={formulario.stock_inicial}
+                      onChange={(e) => setField("stock_inicial", e.target.value)}
+                      placeholder="Ej: 350.00"
+                      className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                        errores.stock_inicial ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      }`}
+                    />
+                    {errores.stock_inicial && (
+                      <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
+                        <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_inicial}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      Máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg. Crea un lote.
+                    </p>
+                  </div>
+                )}
+
+                {/* Stock Mínimo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Mínimo (kg) *</label>
                   <input
                     type="number"
                     step="0.01"
-                    min="0.01"
+                    min="0"
                     max={LIMITES.stock_max}
                     required
-                    value={formulario.stock_inicial}
-                    onChange={(e) => setField("stock_inicial", e.target.value)}
-                    placeholder="Ej: 350.00"
+                    value={formulario.stock_min}
+                    onChange={(e) => setField("stock_min", e.target.value)}
+                    placeholder="Ej: 100.00"
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      errores.stock_inicial ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      errores.stock_min ? "border-red-500 focus:ring-red-500" : "border-gray-300"
                     }`}
                   />
-                  {errores.stock_inicial && (
+                  {errores.stock_min && (
                     <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
-                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_inicial}
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_min}
                     </p>
                   )}
                   <p className="text-xs text-gray-400 mt-1">
-                    Hasta 2 decimales — máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg. Se creará un lote con esta cantidad.
+                    Máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg
                   </p>
                 </div>
-              )}
 
-              {/* Stock Mínimo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Stock Mínimo (kg) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max={LIMITES.stock_max}
-                  required
-                  value={formulario.stock_min}
-                  onChange={(e) => setField("stock_min", e.target.value)}
-                  placeholder="Ej: 100.00"
-                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                    errores.stock_min ? "border-red-500 focus:ring-red-500" : "border-gray-300"
-                  }`}
-                />
-                {errores.stock_min && (
-                  <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.stock_min}
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">
-                  Hasta 2 decimales — máx. {LIMITES.stock_max.toLocaleString("es-CO")} kg
-                </p>
-              </div>
-
-              {/* Categoría */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
-                <select
-                  required
-                  value={formulario.id_categoria_materia}
-                  onChange={(e) => setField("id_categoria_materia", e.target.value)}
-                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                    errores.id_categoria_materia ? "border-red-500 focus:ring-red-500" : "border-gray-300"
-                  }`}
-                >
-                  <option value="">Seleccione una categoría...</option>
-                  {categorias.map((c) => (
-                    <option key={c.id_categoria_materia} value={c.id_categoria_materia}>
-                      {c.nombre_categoria_materia}
-                    </option>
-                  ))}
-                </select>
-                {errores.id_categoria_materia && (
-                  <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
-                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.id_categoria_materia}
-                  </p>
-                )}
+                {/* Categoría — ancho completo dentro del grid */}
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
+                  <select
+                    required
+                    value={formulario.id_categoria_materia}
+                    onChange={(e) => setField("id_categoria_materia", e.target.value)}
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                      errores.id_categoria_materia ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                    }`}
+                  >
+                    <option value="">Seleccione una categoría...</option>
+                    {categorias.map((c) => (
+                      <option key={c.id_categoria_materia} value={c.id_categoria_materia}>
+                        {c.nombre_categoria_materia}
+                      </option>
+                    ))}
+                  </select>
+                  {errores.id_categoria_materia && (
+                    <p className="flex items-center gap-1 text-red-500 text-xs sm:text-sm mt-1">
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {errores.id_categoria_materia}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {editando && (
-                <p className="text-xs text-gray-500 bg-gray-50 rounded p-2 border border-gray-200">
+                <p className="text-xs text-gray-500 bg-gray-50 rounded p-2 border border-gray-200 mt-4">
                   ℹ️ El stock actual solo se modifica mediante movimientos de entrada/salida o recepciones de pedidos.
                 </p>
               )}
 
-              <div className="flex gap-3 pt-2 pb-1">
+              <div className="flex gap-3 pt-4 pb-1">
                 <button
                   type="button"
                   onClick={cerrarModal}
