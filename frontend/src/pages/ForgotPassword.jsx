@@ -63,14 +63,11 @@ export function ForgotPassword() {
     setCodigoExpirado(false);
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        },
-      );
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || "Error al reenviar el código.");
@@ -101,14 +98,11 @@ export function ForgotPassword() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `${API_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        },
-      );
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
       const data = await res.json();
 
@@ -137,14 +131,11 @@ export function ForgotPassword() {
     setError("");
 
     try {
-      const res = await fetch(
-        `${API_URL}/auth/verify-code`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ codigo }),
-        },
-      );
+      const res = await fetch(`${API_URL}/auth/verify-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo }),
+      });
 
       const data = await res.json();
 
@@ -171,14 +162,11 @@ export function ForgotPassword() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `${API_URL}/auth/reset-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ codigo, contraseña }),
-        },
-      );
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, contraseña }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || "Código inválido o expirado.");

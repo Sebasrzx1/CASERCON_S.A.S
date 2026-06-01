@@ -68,17 +68,17 @@ async updateMateria(req, res) {
   }
 },
 
-  // ─── DELETE /api/materias/:id ─────────────────────────────────────────────
 async deleteMateria(req, res) {
     try {
-    const result = await materiasPrimasService.deleteMateria(req.params.id);
-    res.status(200).json(result);
+      const { observacion } = req.body;
+      const result = await materiasPrimasService.deleteMateria(req.params.id, observacion);
+      res.status(200).json(result);
     } catch (error) {
-    console.error("Error en el controlador deleteMateria:", error);
-    const status = error.status || 500;
-    res.status(status).json({ message: error.msg || "Error al eliminar materia prima" });
+      console.error("Error en el controlador deleteMateria:", error);
+      const status = error.status || 500;
+      res.status(status).json({ message: error.msg || "Error al inhabilitar materia prima" });
     }
-},
+  },
 
 async habilitarMateria(req, res) {
 try {
@@ -90,6 +90,47 @@ try {
     res.status(status).json({ message: error.msg || "Error al habilitar materia prima" });
 }
 },
+
+async getRecetasActivas(req, res) {
+    try {
+      const data = await materiasPrimasService.getRecetasActivas(req.params.id);
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("Error en getRecetasActivas:", error);
+      res.status(error.status || 500).json({ message: error.msg || "Error" });
+    }
+  },
+
+  async getProduccionesActivas(req, res) {
+    try {
+      const data = await materiasPrimasService.getProduccionesActivas(req.params.id);
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("Error en getProduccionesActivas:", error);
+      res.status(error.status || 500).json({ message: error.msg || "Error" });
+    }
+  },
+
+  async getPedidosPendientes(req, res) {
+    try {
+      const data = await materiasPrimasService.getPedidosPendientes(req.params.id);
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("Error en getPedidosPendientes:", error);
+      res.status(error.status || 500).json({ message: error.msg || "Error" });
+    }
+  },
+
+  async getMovimientos(req, res) {
+    try {
+      const data = await materiasPrimasService.getMovimientos(req.params.id);
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("Error en getMovimientos:", error);
+      res.status(error.status || 500).json({ message: error.msg || "Error" });
+    }
+  },
+  
 };
 
 module.exports = materiasPrimasController;

@@ -9,6 +9,7 @@ const materiasPrimasModel = {
       mp.codigo,
       mp.nombre,
       mp.estado,
+      mp.observacion_inhabilitacion,
       mp.stock_min AS stockMinimo,
       cm.id_categoria_materia,
       cm.nombre_categoria_materia AS categoria,
@@ -64,7 +65,7 @@ const materiasPrimasModel = {
     LEFT JOIN lotes l
           ON mp.id_materia = l.id_materia AND l.estado = 'activo'
     GROUP BY mp.id_materia, mp.abreviacion, mp.codigo,
-            mp.nombre, mp.stock_min, mp.estado,
+            mp.nombre, mp.observacion_inhabilitacion, mp.stock_min, mp.estado,
             cm.id_categoria_materia, cm.nombre_categoria_materia
     ORDER BY mp.nombre ASC;
   `;
@@ -249,6 +250,82 @@ const materiasPrimasModel = {
     const [result] = await db.execute(query, [id]);
     return result.affectedRows;
   },
+
+async findRecetasActivas(id_materia) {
+  const query = `
+    SELECT r.id_receta, r.nombre_producto
+    FROM detalle_receta dr
+    JOIN recetas r ON dr.id_receta = r.id_receta
+    WHERE dr.id_materia = ?
+      AND r.estado = 'Activo'
+  `;
+  const [rows] = await db.execute(query, [id_materia]);
+  return rows;
+},
+
+  // ─── Producciones pendientes o en proceso que usan esta materia ───────────
+  async findProduccionesActivas(id_materia) {
+    const query = `
+      SELECT DISTINCT op.id_orden_produccion, op.estado
+      FROM ordenes_produccion op
+      WHERE op.estado IN ('Pendiente', 'En proceso')
+        AND (
+          EXISTS (
+            SELECT 1 FROM detalle_orden_produccion dop
+            WHERE dop.id_orden_produccion = op.id_orden_produccion
+              AND dop.id_materia = ?
+          )
+          OR EXISTS (
+            SELECT 1 FROM detalle_receta dr
+            WHERE dr.id_receta = op.id_receta
+              AND dr.id_materia = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM detalle_orden_produccion dop2
+                WHERE dop2.id_orden_produccion = op.id_orden_produccion
+              )
+          )
+        )
+    `;
+    const [rows] = await db.execute(query, [id_materia, id_materia]);
+    return rows;
+  },
+
+  // ─── Pedidos de compra pendientes de esta materia ─────────────────────────
+  async findPedidosPendientes(id_materia) {
+    const query = `
+      SELECT DISTINCT p.id_pedido, p.no_orden_compra, p.estado
+      FROM pedidos p
+      JOIN detalle_pedidos dp ON p.id_pedido = dp.id_pedido
+      WHERE dp.id_materia = ?
+        AND p.estado = 'Pendiente'
+    `;
+    const [rows] = await db.execute(query, [id_materia]);
+    return rows;
+  },
+
+async findMovimientos(id_materia) {
+  const query = `
+    SELECT id_movimiento, tipo_movimiento, cantidad, fecha
+    FROM movimientos_inventario
+    WHERE id_materia = ?
+  `;
+  const [rows] = await db.execute(query, [id_materia]);
+  return rows;
+},
+
+  // ─── Inhabilitar guardando observación ───────────────────────────────────
+  async inhabilitarConObservacion(id, observacion) {
+    const query = `
+      UPDATE materias_primas
+      SET estado = 'Inhabilitado',
+          observacion_inhabilitacion = ?
+      WHERE id_materia = ?
+    `;
+    const [result] = await db.execute(query, [observacion, id]);
+    return result.affectedRows;
+  },
 };
+
+
 
 module.exports = materiasPrimasModel;

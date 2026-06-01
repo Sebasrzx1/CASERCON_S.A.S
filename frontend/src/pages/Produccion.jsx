@@ -224,7 +224,10 @@ export default function ProduccionPage() {
     }, 0);
 
     const timer = setTimeout(() => setHighlightedId(null), 3500);
-    return () => { clearTimeout(aplicar); clearTimeout(timer); };
+    return () => {
+      clearTimeout(aplicar);
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightId, producciones]);
 
@@ -939,7 +942,10 @@ export default function ProduccionPage() {
     setPaginaActual(1);
   }, [filtroEstado, fechaInicio, fechaFin, busqueda]);
 
-  const totalPaginas = Math.max(1, Math.ceil(produccionesFiltradas.length / PRODUCCION_POR_PAGINA));
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(produccionesFiltradas.length / PRODUCCION_POR_PAGINA),
+  );
   const produccionesVisibles = useMemo(() => {
     const inicio = (paginaActual - 1) * PRODUCCION_POR_PAGINA;
     return produccionesFiltradas.slice(inicio, inicio + PRODUCCION_POR_PAGINA);
@@ -1305,7 +1311,9 @@ export default function ProduccionPage() {
             return (
               <div
                 key={p.id_orden_produccion}
-                ref={(el) => { if (el) cardRefs.current[p.id_orden_produccion] = el; }}
+                ref={(el) => {
+                  if (el) cardRefs.current[p.id_orden_produccion] = el;
+                }}
                 className={`bg-white rounded-lg border-2 shadow-sm p-4 sm:p-6 transition-all ${
                   highlightedId === p.id_orden_produccion
                     ? "border-yellow-400 ring-4 ring-yellow-200 shadow-lg"

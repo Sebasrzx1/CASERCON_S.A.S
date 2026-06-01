@@ -57,7 +57,6 @@ function Paginacion({ paginaActual, totalPaginas, onCambiar }) {
   );
 }
 
-
 export default function Recetas() {
   const { isAdministrador } = useAuth();
 
@@ -99,7 +98,9 @@ export default function Recetas() {
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [modalAbierto, confirmOpen]);
 
   const cargarRecetas = async () => {
@@ -156,7 +157,10 @@ export default function Recetas() {
     setPaginaActual(1);
   }, [busqueda, filtroEstado]);
 
-  const totalPaginas = Math.max(1, Math.ceil(recetasFiltradas.length / RECETAS_POR_PAGINA));
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(recetasFiltradas.length / RECETAS_POR_PAGINA),
+  );
   const recetasVisibles = useMemo(() => {
     const inicio = (paginaActual - 1) * RECETAS_POR_PAGINA;
     return recetasFiltradas.slice(inicio, inicio + RECETAS_POR_PAGINA);
@@ -239,7 +243,9 @@ export default function Recetas() {
     }
     setGuardando(true);
     try {
-      const url = editando ? `${API_URL}/recetas/${editando.id_receta}` : `${API_URL}/recetas`;
+      const url = editando
+        ? `${API_URL}/recetas/${editando.id_receta}`
+        : `${API_URL}/recetas`;
       const method = editando ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -336,11 +342,12 @@ export default function Recetas() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">Recetas</h1>
+          <h1 className="font-bold text-gray-900 text-xl sm:text-2xl">
+            Recetas
+          </h1>
           <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Gestión de fórmulas de producción
           </p>
@@ -357,7 +364,9 @@ export default function Recetas() {
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-gray-600 mb-1">Total</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900">{recetas.length}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">
+            {recetas.length}
+          </p>
         </div>
         <div className="bg-green-50 rounded-lg border border-green-200 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-green-700 mb-1">Habilitadas</p>
@@ -386,7 +395,8 @@ export default function Recetas() {
           >
             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
               <Check className="w-4 h-4" />
-              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length})
+              Habilitadas ({recetas.filter((r) => r.estado === "Activo").length}
+              )
             </span>
           </button>
           <button
@@ -399,7 +409,8 @@ export default function Recetas() {
           >
             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
               <Ban className="w-4 h-4" />
-              Inhabilitadas ({recetas.filter((r) => r.estado === "Inhabilitado").length})
+              Inhabilitadas (
+              {recetas.filter((r) => r.estado === "Inhabilitado").length})
             </span>
           </button>
         </div>
@@ -450,9 +461,13 @@ export default function Recetas() {
                       }`}
                     >
                       {r.estado === "Activo" ? (
-                        <><Check className="w-3 h-3" /> Habilitada</>
+                        <>
+                          <Check className="w-3 h-3" /> Habilitada
+                        </>
                       ) : (
-                        <><Ban className="w-3 h-3" /> Inhabilitada</>
+                        <>
+                          <Ban className="w-3 h-3" /> Inhabilitada
+                        </>
                       )}
                     </span>
                   </div>
@@ -522,7 +537,9 @@ export default function Recetas() {
                             <p className="text-xs text-blue-600 truncate">
                               {ing.codigo}
                               <span className="text-gray-400 mx-1">•</span>
-                              <span className="text-gray-500">{ing.categoria}</span>
+                              <span className="text-gray-500">
+                                {ing.categoria}
+                              </span>
                             </p>
                           </div>
                         </div>
@@ -534,14 +551,18 @@ export default function Recetas() {
                   </div>
 
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                    <span className="text-sm font-semibold text-gray-700">Total</span>
+                    <span className="text-sm font-semibold text-gray-700">
+                      Total
+                    </span>
                     <span className="font-bold text-gray-900 text-sm">
                       {r.ingredientes
                         ?.reduce(
-                          (sum, ing) => sum + parseFloat(ing.cantidad_porcentaje),
+                          (sum, ing) =>
+                            sum + parseFloat(ing.cantidad_porcentaje),
                           0,
                         )
-                        .toFixed(2)}%
+                        .toFixed(2)}
+                      %
                     </span>
                   </div>
                 </div>
@@ -614,7 +635,11 @@ export default function Recetas() {
                         required
                         value={ing.id_materia}
                         onChange={(e) =>
-                          actualizarIngrediente(index, "id_materia", e.target.value)
+                          actualizarIngrediente(
+                            index,
+                            "id_materia",
+                            e.target.value,
+                          )
                         }
                         className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       >
@@ -631,7 +656,8 @@ export default function Recetas() {
                               value={mp.id_materia}
                               disabled={enUso}
                             >
-                              {mp.nombre}{enUso ? " (ya agregada)" : ""}
+                              {mp.nombre}
+                              {enUso ? " (ya agregada)" : ""}
                             </option>
                           );
                         })}
@@ -646,7 +672,11 @@ export default function Recetas() {
                           step="0.01"
                           value={ing.cantidad_porcentaje}
                           onChange={(e) =>
-                            actualizarIngrediente(index, "cantidad_porcentaje", e.target.value)
+                            actualizarIngrediente(
+                              index,
+                              "cantidad_porcentaje",
+                              e.target.value,
+                            )
                           }
                           placeholder="0.00"
                           className="w-full px-3 py-2 pr-7 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -687,7 +717,11 @@ export default function Recetas() {
                   disabled={guardando}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
-                  {guardando ? "Guardando..." : editando ? "Guardar Cambios" : "Crear Receta"}
+                  {guardando
+                    ? "Guardando..."
+                    : editando
+                      ? "Guardar Cambios"
+                      : "Crear Receta"}
                 </button>
               </div>
             </form>
@@ -709,15 +743,22 @@ export default function Recetas() {
                 <Check className="w-7 h-7 sm:w-8 sm:h-8 text-green-500 flex-shrink-0" />
               )}
               <h2 className="font-bold text-gray-900 text-base sm:text-lg">
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"} Receta
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}{" "}
+                Receta
               </h2>
             </div>
             <p className="text-gray-600 mb-5 text-sm sm:text-base">
               ¿Estás seguro de que deseas{" "}
-              {confirmData.accion === "inhabilitar" ? "inhabilitar" : "habilitar"} la receta{" "}
+              {confirmData.accion === "inhabilitar"
+                ? "inhabilitar"
+                : "habilitar"}{" "}
+              la receta{" "}
               <span className="font-semibold text-gray-900">
                 "{confirmData.receta.nombre_producto}"
-              </span>?
+              </span>
+              ?
               {confirmData.accion === "inhabilitar" && (
                 <span className="block mt-2 text-sm text-red-600">
                   No podrá usarse en nuevas órdenes de producción.
@@ -726,7 +767,10 @@ export default function Recetas() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => { setConfirmOpen(false); setConfirmData(null); }}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setConfirmData(null);
+                }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 Cancelar
@@ -739,7 +783,9 @@ export default function Recetas() {
                     : "bg-green-600 hover:bg-green-700"
                 }`}
               >
-                {confirmData.accion === "inhabilitar" ? "Inhabilitar" : "Habilitar"}
+                {confirmData.accion === "inhabilitar"
+                  ? "Inhabilitar"
+                  : "Habilitar"}
               </button>
             </div>
           </div>

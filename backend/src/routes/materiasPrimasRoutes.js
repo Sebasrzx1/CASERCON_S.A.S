@@ -10,5 +10,9 @@ router.post("/", materiasPrimasController.createMateria);
 router.put("/:id", materiasPrimasController.updateMateria);
 router.delete("/:id", materiasPrimasController.deleteMateria); // inhabilita
 router.patch("/:id/habilitar", materiasPrimasController.habilitarMateria); // reactiva
+router.get("/:id/recetas-activas",     materiasPrimasController.getRecetasActivas);
+router.get("/:id/producciones-activas", materiasPrimasController.getProduccionesActivas);
+router.get("/:id/pedidos-pendientes",  materiasPrimasController.getPedidosPendientes);
+router.get("/:id/movimientos",         materiasPrimasController.getMovimientos);
 
 module.exports = router;

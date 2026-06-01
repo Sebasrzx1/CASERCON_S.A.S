@@ -194,14 +194,16 @@ const materiasPrimasService = {
   },
 
   // ─── Inhabilitar ───────────────────────────────────────────────────────────
-  async deleteMateria(id) {
+  async deleteMateria(id, observacion) {
     try {
       const materia = await materiasPrimasModel.findById(id);
       if (!materia) throw { status: 404, msg: "Materia prima no encontrada" };
       if (materia.estado === "Inhabilitado")
         throw { status: 400, msg: "La materia prima ya está inhabilitada" };
+      if (!observacion || observacion.trim().length < 10)
+        throw { status: 400, msg: "La observación debe tener al menos 10 caracteres" };
 
-      await materiasPrimasModel.inhabilitar(id);
+      await materiasPrimasModel.inhabilitarConObservacion(id, observacion.trim());
       return { msg: "Materia prima inhabilitada correctamente" };
     } catch (error) {
       console.error("Error en service deleteMateria:", error);
@@ -221,6 +223,46 @@ const materiasPrimasService = {
       return { msg: "Materia prima habilitada correctamente" };
     } catch (error) {
       console.error("Error en service habilitarMateria:", error);
+      throw error;
+    }
+  },
+
+  // ─── Recetas activas ───────────────────────────────────────────────────────
+  async getRecetasActivas(id) {
+    try {
+      return await materiasPrimasModel.findRecetasActivas(id);
+    } catch (error) {
+      console.error("Error en service getRecetasActivas:", error);
+      throw error;
+    }
+  },
+
+  // ─── Producciones activas ──────────────────────────────────────────────────
+  async getProduccionesActivas(id) {
+    try {
+      return await materiasPrimasModel.findProduccionesActivas(id);
+    } catch (error) {
+      console.error("Error en service getProduccionesActivas:", error);
+      throw error;
+    }
+  },
+
+  // ─── Pedidos pendientes ────────────────────────────────────────────────────
+  async getPedidosPendientes(id) {
+    try {
+      return await materiasPrimasModel.findPedidosPendientes(id);
+    } catch (error) {
+      console.error("Error en service getPedidosPendientes:", error);
+      throw error;
+    }
+  },
+
+  // ─── Movimientos ──────────────────────────────────────────────────────────
+  async getMovimientos(id) {
+    try {
+      return await materiasPrimasModel.findMovimientos(id);
+    } catch (error) {
+      console.error("Error en service getMovimientos:", error);
       throw error;
     }
   },

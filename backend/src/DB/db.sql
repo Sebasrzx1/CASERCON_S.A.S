@@ -88,6 +88,7 @@ CREATE TABLE materias_primas(
     codigo VARCHAR(100) NOT NULL UNIQUE,
     id_categoria_materia INT NOT NULL,
     nombre VARCHAR(80) NOT NULL,
+    observacion_inhabilitacion TEXT NULL DEFAULT NULL,
     stock_min DECIMAL(12,2) DEFAULT 0,
     estado ENUM('Activo','Inhabilitado') DEFAULT 'Activo',
     FOREIGN KEY (id_categoria_materia) REFERENCES categoria_materias(id_categoria_materia)

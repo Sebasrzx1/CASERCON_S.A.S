@@ -77,7 +77,9 @@ export function Login() {
             <img src={logoCarsecon} alt="Logo" />
           </div>
           <h1 className="text-white text-3xl font-bold">SIGIC</h1>
-          <p className="text-yellow-400">Sistema integrado de gestion de inventario Casercon</p>
+          <p className="text-yellow-400">
+            Sistema integrado de gestion de inventario Casercon
+          </p>
         </div>
 
         {/* Formulario */}
