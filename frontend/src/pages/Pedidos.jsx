@@ -236,7 +236,7 @@ export default function PedidosPage() {
       );
     }
 
-    if (filtroEstado !== "pendiente" && filtroEstado !== "devolucion") {
+    if (filtroEstado !== "pendiente") {
       if (fechaInicio) {
         const ini = new Date(fechaInicio);
         ini.setHours(0, 0, 0, 0);
@@ -830,7 +830,7 @@ export default function PedidosPage() {
         </div>
 
         {/* Rango de fechas */}
-        {(filtroEstado === "recibido" || filtroEstado === "cancelado") && (
+        {(filtroEstado === "recibido" || filtroEstado === "devolucion") && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1 border-t border-gray-100">
             <span className="text-xs sm:text-sm font-medium text-gray-500 flex-shrink-0">
               Fecha de creación:
